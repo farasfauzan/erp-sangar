@@ -2,14 +2,96 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\Auditable;
 use Illuminate\Database\Eloquent\Model;
 
 class RabBudget extends Model
 {
-    protected $fillable = ['project_id', 'code_item', 'description', 'unit', 'volume', 'unit_price', 'total_price', 'category'];
+    use Auditable;
+
+    protected $fillable = [
+        'project_id', 'code_item', 'description', 'unit', 'volume',
+        'unit_price', 'total_price', 'category', 'status',
+        'parent_id', 'approved_by', 'approved_at',
+    ];
+
+    // Statuses
+    const STATUS_DRAFT    = 'DRAFT';
+    const STATUS_PENDING  = 'PENDING';
+    const STATUS_APPROVED = 'APPROVED';
+    const STATUS_REJECTED = 'REJECTED';
 
     public function project()
     {
         return $this->belongsTo(Project::class);
+    }
+
+    public function parent()
+    {
+        return $this->belongsTo(RabBudget::class, 'parent_id');
+    }
+
+    public function children()
+    {
+        return $this->hasMany(RabBudget::class, 'parent_id');
+    }
+
+    public function approver()
+    {
+        return $this->belongsTo(User::class, 'approved_by');
+    }
+
+    // Lock check: cannot edit if APPROVED
+    public function getIsLockedAttribute(): bool
+    {
+        return $this->status === self::STATUS_APPROVED;
+    }
+
+    // Submit for approval (bulk — all draft items for a project)
+    public static function submitForApproval(int $projectId): int
+    {
+        return static::where('project_id', $projectId)
+            ->where('status', self::STATUS_DRAFT)
+            ->update(['status' => self::STATUS_PENDING]);
+    }
+
+    // Approve (bulk — all pending items for a project)
+    public static function approveAll(int $projectId, User $user): int
+    {
+        return static::where('project_id', $projectId)
+            ->where('status', self::STATUS_PENDING)
+            ->update([
+                'status'      => self::STATUS_APPROVED,
+                'approved_by' => $user->id,
+                'approved_at' => now(),
+            ]);
+    }
+
+    // Reject (bulk — all pending items for a project)
+    public static function rejectAll(int $projectId, User $user): int
+    {
+        return static::where('project_id', $projectId)
+            ->where('status', self::STATUS_PENDING)
+            ->update([
+                'status'      => self::STATUS_REJECTED,
+                'approved_by' => $user->id,
+                'approved_at' => now(),
+            ]);
+    }
+
+    // Roll-up summary by category for a project
+    public static function rollUp(int $projectId): array
+    {
+        return static::where('project_id', $projectId)
+            ->selectRaw('category, SUM(total_price) as subtotal, COUNT(*) as item_count')
+            ->groupBy('category')
+            ->get()
+            ->toArray();
+    }
+
+    // Total budget for a project
+    public static function totalBudget(int $projectId): float
+    {
+        return (float) static::where('project_id', $projectId)->sum('total_price');
     }
 }

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\RabBudget;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -414,6 +415,14 @@ class RabBudgetController extends Controller
     public function update(Request $request, $id)
     {
         $rab = RabBudget::findOrFail($id);
+
+        if ($rab->is_locked) {
+            return response()->json([
+                'success' => false,
+                'message' => 'RAB item terkunci (APPROVED). Tidak bisa diedit.',
+            ], 403);
+        }
+
         $data = $request->only(['code_item', 'description', 'unit', 'volume', 'unit_price', 'total_price', 'category']);
         foreach (['kode' => 'code_item', 'uraian' => 'description', 'satuan' => 'unit', 'harga_satuan' => 'unit_price', 'jumlah' => 'total_price'] as $old => $new) {
             if ($request->has($old)) {
@@ -426,8 +435,75 @@ class RabBudgetController extends Controller
 
     public function destroy($id)
     {
-        RabBudget::findOrFail($id)->delete();
+        $rab = RabBudget::findOrFail($id);
+
+        if ($rab->is_locked) {
+            return response()->json([
+                'success' => false,
+                'message' => 'RAB item terkunci (APPROVED). Tidak bisa dihapus.',
+            ], 403);
+        }
+
+        $rab->delete();
         return response()->json(['success' => true, 'message' => 'RAB item deleted']);
+    }
+
+    /**
+     * Submit RAB for approval (bulk: all DRAFT items for a project)
+     */
+    public function submitForApproval(Request $request)
+    {
+        $request->validate(['project_id' => 'required|exists:projects,id']);
+        $count = RabBudget::submitForApproval($request->project_id);
+        return response()->json([
+            'success' => true,
+            'message' => "{$count} item RAB diajukan untuk approval.",
+            'data' => ['updated' => $count],
+        ]);
+    }
+
+    /**
+     * Approve all pending RAB items for a project
+     */
+    public function approve(Request $request)
+    {
+        $request->validate(['project_id' => 'required|exists:projects,id']);
+        $count = RabBudget::approveAll($request->project_id, Auth::user());
+        return response()->json([
+            'success' => true,
+            'message' => "{$count} item RAB disetujui.",
+            'data' => ['approved' => $count],
+        ]);
+    }
+
+    /**
+     * Reject all pending RAB items for a project
+     */
+    public function reject(Request $request)
+    {
+        $request->validate(['project_id' => 'required|exists:projects,id']);
+        $count = RabBudget::rejectAll($request->project_id, Auth::user());
+        return response()->json([
+            'success' => true,
+            'message' => "{$count} item RAB ditolak.",
+            'data' => ['rejected' => $count],
+        ]);
+    }
+
+    /**
+     * Roll-up summary by category
+     */
+    public function rollUp(Request $request)
+    {
+        $request->validate(['project_id' => 'required|exists:projects,id']);
+        $projectId = $request->project_id;
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'rollup' => RabBudget::rollUp($projectId),
+                'total_budget' => RabBudget::totalBudget($projectId),
+            ],
+        ]);
     }
 
     public function summary(Request $request)

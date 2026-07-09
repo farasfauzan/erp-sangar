@@ -10,6 +10,9 @@ use App\Http\Controllers\Api\PurchaseOrderController;
 use App\Http\Controllers\Api\SpkController;
 use App\Http\Controllers\Api\ProjectController;
 use App\Http\Controllers\Api\FundRequestController;
+use App\Http\Controllers\Api\PurchaseRequisitionController;
+use App\Http\Controllers\Api\InventoryController;
+use App\Http\Controllers\Api\AuditLogController;
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -38,6 +41,19 @@ Route::get('/rab/{id}', [RabBudgetController::class, 'show']);
 Route::put('/rab/{id}', [RabBudgetController::class, 'update']);
 Route::delete('/rab/{id}', [RabBudgetController::class, 'destroy']);
 
+// RAB Approval Workflow
+Route::post('/rab/submit-for-approval', [RabBudgetController::class, 'submitForApproval']);
+Route::post('/rab/approve', [RabBudgetController::class, 'approve']);
+Route::post('/rab/reject', [RabBudgetController::class, 'reject']);
+Route::get('/rab/rollup', [RabBudgetController::class, 'rollUp']);
+
+// Purchase Requisitions (PR)
+Route::get('/purchase-requisitions', [PurchaseRequisitionController::class, 'index']);
+Route::post('/purchase-requisitions', [PurchaseRequisitionController::class, 'store']);
+Route::get('/purchase-requisitions/{id}', [PurchaseRequisitionController::class, 'show']);
+Route::put('/purchase-requisitions/{id}/approve', [PurchaseRequisitionController::class, 'approve']);
+Route::put('/purchase-requisitions/{id}/reject', [PurchaseRequisitionController::class, 'reject']);
+
 // Workflow A: Pengadaan & Kontrak
 Route::get('/pos', [PurchaseOrderController::class, 'index']);
 Route::post('/pos', [PurchaseOrderController::class, 'store']);
@@ -61,3 +77,10 @@ Route::put('/fund-requests/{id}/lpj-verify', [FundRequestController::class, 'ver
 // Master Data
 Route::get('/projects', [ProjectController::class, 'index']);
 Route::get('/projects/{id}', [ProjectController::class, 'show']);
+
+// Inventory
+Route::get('/inventory', [InventoryController::class, 'index']);
+Route::post('/inventory/receive', [InventoryController::class, 'receive']);
+
+// Audit Trail
+Route::get('/audit-logs', [AuditLogController::class, 'index']);
