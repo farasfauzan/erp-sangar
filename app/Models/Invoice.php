@@ -1,0 +1,23 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+
+class Invoice extends Model
+{
+    protected $fillable = [
+        'invoiceable_type', 'invoiceable_id', 'invoice_number', 
+        'invoice_date', 'due_date', 'amount', 'status'
+    ];
+
+    public function invoiceable()
+    {
+        return $this->morphTo();
+    }
+
+    public function attachments()
+    {
+        return $this->hasMany(InvoiceAttachment::class);
+    }
+}
