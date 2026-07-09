@@ -6,10 +6,42 @@ use Illuminate\Database\Seeder;
 use App\Models\Project;
 use App\Models\RabBudget;
 
+use App\Models\Role;
+use App\Models\User;
+use Illuminate\Support\Facades\Hash;
+
 class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
+        // 1. Seed Roles
+        $roles = [
+            'LAPANGAN', 
+            'ENGINEER', 
+            'PURCHASING_LEGAL', 
+            'VERIFIKATOR_KEU', 
+            'MGR_KOMERSIAL', 
+            'KEU_KANTOR', 
+            'PAJAK', 
+            'ACCOUNTING'
+        ];
+        
+        $roleMap = [];
+        foreach ($roles as $roleName) {
+            $roleMap[$roleName] = Role::create(['role_name' => $roleName])->id;
+        }
+
+        // 2. Seed Users
+        foreach ($roles as $roleName) {
+            User::create([
+                'name' => ucwords(strtolower(str_replace('_', ' ', $roleName))),
+                'email' => strtolower($roleName) . '@erp.com',
+                'password' => Hash::make('password'),
+                'role_id' => $roleMap[$roleName]
+            ]);
+        }
+
+        // 3. Seed initial project
         $project = Project::create([
             'project_name' => 'Proyek RSUD Mentawai',
             'location' => 'Mentawai',

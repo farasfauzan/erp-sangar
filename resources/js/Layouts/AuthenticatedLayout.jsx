@@ -7,14 +7,14 @@ import { Link, usePage } from '@inertiajs/react';
 
 export default function Authenticated({ header, children }) {
     const user = usePage().props.auth.user;
-    const roleId = user.role_id || 1; // Default to LAPANGAN (1) for now
+    const roleName = user.role?.role_name || 'LAPANGAN'; // Default to LAPANGAN if not loaded
 
     const [showingNavigationDropdown, setShowingNavigationDropdown] = useState(false);
 
-    // Sidebar Menus based on Role ID
+    // Sidebar Menus based on Role Name
     const getRoleMenus = () => {
-        switch (roleId) {
-            case 1: // LAPANGAN
+        switch (roleName) {
+            case 'LAPANGAN':
                 return [
                     { name: 'Dashboard Proyek', route: 'dashboard', icon: '📊' },
                     { name: 'Draft PO', route: 'po', icon: '📝' },
@@ -22,44 +22,44 @@ export default function Authenticated({ header, children }) {
                     { name: 'Input Opname', route: 'opname', icon: '🏗️' },
                     { name: 'LPJ & Permohonan', route: 'dashboard', icon: '💸' },
                 ];
-            case 2: // ENGINEER
+            case 'ENGINEER':
                 return [
                     { name: 'Dashboard Verifikasi', route: 'dashboard', icon: '📋' },
                     { name: 'Verifikasi Kebutuhan', route: 'dashboard', icon: '🔍' },
                     { name: 'Verifikasi Tagihan', route: 'dashboard', icon: '✅' },
                 ];
-            case 3: // PURCHASING & LEGAL
+            case 'PURCHASING_LEGAL':
                 return [
                     { name: 'Dashboard Pengadaan', route: 'dashboard', icon: '📊' },
                     { name: 'Purchase Orders', route: 'po', icon: '🛒' },
                     { name: 'Kontrak SPK', route: 'dashboard', icon: '📜' },
                     { name: 'Input Tagihan', route: 'invoicing', icon: '📥' },
                 ];
-            case 4: // VERIFIKATOR_KEU
+            case 'VERIFIKATOR_KEU':
                 return [
                     { name: 'Dashboard Verifikasi', route: 'dashboard', icon: '📊' },
                     { name: 'Verifikasi Dokumen', route: 'dashboard', icon: '📑' },
                     { name: 'Verifikasi LPJ', route: 'dashboard', icon: '⚖️' },
                 ];
-            case 5: // MGR_KOMERSIAL
+            case 'MGR_KOMERSIAL':
                 return [
                     { name: 'Executive Dashboard', route: 'dashboard', icon: '📈' },
                     { name: 'Approval PO & SPK', route: 'approval', icon: '✍️' },
                     { name: 'Approval Cashflow', route: 'dashboard', icon: '✍️' },
                 ];
-            case 6: // KEU_KANTOR
+            case 'KEU_KANTOR':
                 return [
                     { name: 'Dashboard Arus Kas', route: 'dashboard', icon: '📊' },
                     { name: 'Daftar Antrean Bayar', route: 'dashboard', icon: '💳' },
                     { name: 'Eksekusi Pembayaran', route: 'payment', icon: '💸' },
                 ];
-            case 7: // PAJAK
+            case 'PAJAK':
                 return [
                     { name: 'Dashboard Pajak', route: 'dashboard', icon: '🏛️' },
                     { name: 'Faktur Pajak', route: 'dashboard', icon: '🧾' },
                     { name: 'E-Faktur CSV', route: 'dashboard', icon: '⬇️' },
                 ];
-            case 8: // ACCOUNTING
+            case 'ACCOUNTING':
                 return [
                     { name: 'Dashboard Akuntansi', route: 'dashboard', icon: '📊' },
                     { name: 'Posting Jurnal', route: 'dashboard', icon: '📔' },

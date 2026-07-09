@@ -119,6 +119,9 @@ export default function Dashboard({ auth }) {
                     
                     <div className="overflow-hidden bg-white shadow-sm sm:rounded-lg">
                         <div className="p-6 text-gray-900">
+                            <div className="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                                Selamat datang, <strong>{auth.user.name}</strong>! Anda login sebagai peran: <strong className="text-indigo-600">{auth.user.role?.role_name || auth.user.role_id}</strong>.
+                            </div>
                             
                             {step === 1 && (
                                 <div className="space-y-4">
