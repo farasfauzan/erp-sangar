@@ -13,6 +13,17 @@ return new class extends Migration
     {
         Schema::create('fund_requests', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('project_id')->constrained('projects');
+            $table->string('request_number')->unique();
+            $table->decimal('amount', 15, 2);
+            $table->text('description')->nullable();
+            $table->string('status')->default('PENDING_APPROVAL');
+            $table->foreignId('requested_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignId('approved_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->timestamp('approved_at')->nullable();
+            $table->timestamp('paid_at')->nullable();
+            $table->timestamp('lpj_submitted_at')->nullable();
+            $table->text('lpj_notes')->nullable();
             $table->timestamps();
         });
     }

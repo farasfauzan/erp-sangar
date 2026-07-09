@@ -22,6 +22,7 @@ return new class extends Migration
             $table->text('payment_terms')->nullable();
             $table->string('status')->default('DRAFT');
             $table->foreignId('created_by')->nullable()->constrained('users');
+            $table->foreignId('approved_by')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamps();
         });
     }

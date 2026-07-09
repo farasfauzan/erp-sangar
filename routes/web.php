@@ -54,10 +54,14 @@ Route::get('/payment', function () {
     return Inertia::render('PaymentExecution');
 })->middleware(['auth', 'verified'])->name('payment');
 
+Route::get('/fund-requests', function () {
+    return Inertia::render('FundRequestPage');
+})->middleware(['auth', 'verified'])->name('fund-requests');
+
 // RAB routes (web auth, not API token)
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/rab/preview', [\App\Http\Controllers\Api\RabBudgetController::class, 'preview']);
-    Route::post('/rab/import', [\App\Http\Controllers\Api\RabBudgetController::class, 'import']);
+    Route::post('/rab/import', [\App\Http\Controllers\Api\RabBudgetController::class, 'autoImport']);
     Route::post('/rab/auto-import', [\App\Http\Controllers\Api\RabBudgetController::class, 'autoImport']);
     Route::get('/projects/{projectId}/rab', [\App\Http\Controllers\Api\RabBudgetController::class, 'index']);
 });

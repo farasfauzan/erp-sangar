@@ -13,6 +13,12 @@ return new class extends Migration
     {
         Schema::create('general_ledgers', function (Blueprint $table) {
             $table->id();
+            $table->date('transaction_date');
+            $table->string('account_code');
+            $table->text('description')->nullable();
+            $table->decimal('debit', 15, 2)->default(0);
+            $table->decimal('credit', 15, 2)->default(0);
+            $table->foreignId('project_id')->nullable()->constrained('projects')->nullOnDelete();
             $table->timestamps();
         });
     }

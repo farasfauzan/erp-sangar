@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\ApprovalLog;
 use App\Models\Spk;
 use Illuminate\Http\Request;
 
@@ -41,5 +42,46 @@ class SpkController extends Controller
             'message' => 'Draft Surat Perintah Kerja (SPK) berhasil dibuat.',
             'data' => $spk
         ], 201);
+    }
+
+    public function submit(Request $request, $id)
+    {
+        $spk = Spk::findOrFail($id);
+        $spk->update(['status' => 'PENDING_APPROVAL']);
+        $this->log($request, $spk, 'SUBMIT');
+
+        return response()->json(['message' => 'SPK dikirim untuk approval.', 'data' => $spk]);
+    }
+
+    public function approve(Request $request, $id)
+    {
+        $spk = Spk::findOrFail($id);
+        $spk->update([
+            'status' => 'APPROVED',
+            'approved_by' => $request->user()->id ?? 1,
+        ]);
+        $this->log($request, $spk, 'APPROVE');
+
+        return response()->json(['message' => 'SPK disetujui.', 'data' => $spk]);
+    }
+
+    public function reject(Request $request, $id)
+    {
+        $spk = Spk::findOrFail($id);
+        $spk->update(['status' => 'REJECTED']);
+        $this->log($request, $spk, 'REJECT', $request->input('notes'));
+
+        return response()->json(['message' => 'SPK ditolak.', 'data' => $spk]);
+    }
+
+    private function log(Request $request, Spk $spk, string $action, ?string $notes = null): void
+    {
+        ApprovalLog::create([
+            'record_type' => Spk::class,
+            'record_id' => $spk->id,
+            'user_id' => $request->user()->id ?? 1,
+            'action' => $action,
+            'notes' => $notes,
+        ]);
     }
 }

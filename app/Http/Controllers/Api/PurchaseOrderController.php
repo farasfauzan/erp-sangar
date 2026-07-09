@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\ApprovalLog;
 use App\Models\PurchaseOrder;
 use App\Models\PoItem;
 use Illuminate\Http\Request;
@@ -75,5 +76,46 @@ class PurchaseOrderController extends Controller
             DB::rollBack();
             return response()->json(['message' => 'Gagal membuat PO.', 'error' => $e->getMessage()], 500);
         }
+    }
+
+    public function submit(Request $request, $id)
+    {
+        $po = PurchaseOrder::findOrFail($id);
+        $po->update(['status' => 'PENDING_APPROVAL']);
+        $this->log($request, $po, 'SUBMIT');
+
+        return response()->json(['message' => 'PO dikirim untuk approval.', 'data' => $po]);
+    }
+
+    public function approve(Request $request, $id)
+    {
+        $po = PurchaseOrder::findOrFail($id);
+        $po->update([
+            'status' => 'APPROVED',
+            'approved_by' => $request->user()->id ?? 1,
+        ]);
+        $this->log($request, $po, 'APPROVE');
+
+        return response()->json(['message' => 'PO disetujui.', 'data' => $po]);
+    }
+
+    public function reject(Request $request, $id)
+    {
+        $po = PurchaseOrder::findOrFail($id);
+        $po->update(['status' => 'REJECTED']);
+        $this->log($request, $po, 'REJECT', $request->input('notes'));
+
+        return response()->json(['message' => 'PO ditolak.', 'data' => $po]);
+    }
+
+    private function log(Request $request, PurchaseOrder $po, string $action, ?string $notes = null): void
+    {
+        ApprovalLog::create([
+            'record_type' => PurchaseOrder::class,
+            'record_id' => $po->id,
+            'user_id' => $request->user()->id ?? 1,
+            'action' => $action,
+            'notes' => $notes,
+        ]);
     }
 }

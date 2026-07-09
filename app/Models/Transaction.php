@@ -12,4 +12,9 @@ class Transaction extends Model
     {
         return $this->belongsTo(Invoice::class);
     }
+
+    public function fundRequest()
+    {
+        return $this->belongsTo(FundRequest::class);
+    }
 }

@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\RabBudgetController;
 use App\Http\Controllers\Api\PurchaseOrderController;
 use App\Http\Controllers\Api\SpkController;
 use App\Http\Controllers\Api\ProjectController;
+use App\Http\Controllers\Api\FundRequestController;
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -30,14 +31,32 @@ Route::put('/invoices/{id}/manager-approve', [InvoiceController::class, 'approve
 Route::post('/invoices/{id}/payments', [InvoiceController::class, 'executePayment']);
 // RAB Data
 Route::post('/rab/preview', [RabBudgetController::class, 'preview']);
-Route::post('/rab/import', [RabBudgetController::class, 'import']);
-Route::get('/projects/{projectId}/rab', [RabBudgetController::class, 'index']);
+Route::post('/rab/auto-import', [RabBudgetController::class, 'autoImport']);
+Route::get('/rab', [RabBudgetController::class, 'index']);
+Route::get('/rab/summary', [RabBudgetController::class, 'summary']);
+Route::get('/rab/{id}', [RabBudgetController::class, 'show']);
+Route::put('/rab/{id}', [RabBudgetController::class, 'update']);
+Route::delete('/rab/{id}', [RabBudgetController::class, 'destroy']);
 
 // Workflow A: Pengadaan & Kontrak
 Route::get('/pos', [PurchaseOrderController::class, 'index']);
 Route::post('/pos', [PurchaseOrderController::class, 'store']);
+Route::put('/pos/{id}/submit', [PurchaseOrderController::class, 'submit']);
+Route::put('/pos/{id}/approve', [PurchaseOrderController::class, 'approve']);
+Route::put('/pos/{id}/reject', [PurchaseOrderController::class, 'reject']);
 Route::get('/spks', [SpkController::class, 'index']);
 Route::post('/spks', [SpkController::class, 'store']);
+Route::put('/spks/{id}/submit', [SpkController::class, 'submit']);
+Route::put('/spks/{id}/approve', [SpkController::class, 'approve']);
+Route::put('/spks/{id}/reject', [SpkController::class, 'reject']);
+
+// Workflow D: LPJ & Permohonan Dana
+Route::get('/fund-requests', [FundRequestController::class, 'index']);
+Route::post('/fund-requests', [FundRequestController::class, 'store']);
+Route::put('/fund-requests/{id}/approve', [FundRequestController::class, 'approve']);
+Route::post('/fund-requests/{id}/payments', [FundRequestController::class, 'pay']);
+Route::put('/fund-requests/{id}/lpj', [FundRequestController::class, 'submitLpj']);
+Route::put('/fund-requests/{id}/lpj-verify', [FundRequestController::class, 'verifyLpj']);
 
 // Master Data
 Route::get('/projects', [ProjectController::class, 'index']);

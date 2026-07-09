@@ -8,6 +8,11 @@ export default function PurchaseOrder() {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
+        fetchPos();
+    }, []);
+
+    const fetchPos = () => {
+        setLoading(true);
         axios.get('/api/pos').then(res => {
             setPos(res.data);
             setLoading(false);
@@ -15,7 +20,17 @@ export default function PurchaseOrder() {
             console.error(err);
             setLoading(false);
         });
-    }, []);
+    };
+
+    const submitPo = async (id) => {
+        if (!confirm('Kirim PO untuk approval?')) return;
+        try {
+            await axios.put(`/api/pos/${id}/submit`);
+            await fetchPos();
+        } catch (err) {
+            alert(err.response?.data?.message || 'Gagal submit PO.');
+        }
+    };
 
     return (
         <AuthenticatedLayout
@@ -37,7 +52,7 @@ export default function PurchaseOrder() {
                                     + Buat PO Baru
                                 </a>
                             </div>
-                            
+
                             {loading ? (
                                 <p>Memuat data...</p>
                             ) : (
@@ -49,11 +64,12 @@ export default function PurchaseOrder() {
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Supplier</th>
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Amount</th>
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Aksi</th>
                                         </tr>
                                     </thead>
                                     <tbody className="bg-white divide-y divide-gray-200">
                                         {pos.length === 0 ? (
-                                            <tr><td colSpan="5" className="px-6 py-4 text-center text-sm text-gray-500">Belum ada data PO.</td></tr>
+                                            <tr><td colSpan="6" className="px-6 py-4 text-center text-sm text-gray-500">Belum ada data PO.</td></tr>
                                         ) : (
                                             pos.map((po, idx) => (
                                                 <tr key={idx}>
@@ -65,6 +81,11 @@ export default function PurchaseOrder() {
                                                         <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
                                                             {po.status}
                                                         </span>
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                        {po.status === 'DRAFT' ? (
+                                                            <button onClick={() => submitPo(po.id)} className="rounded bg-emerald-600 px-3 py-1 text-sm text-white shadow hover:bg-emerald-700">Submit</button>
+                                                        ) : '-'}
                                                     </td>
                                                 </tr>
                                             ))

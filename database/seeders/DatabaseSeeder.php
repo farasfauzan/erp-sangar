@@ -16,6 +16,7 @@ class DatabaseSeeder extends Seeder
     {
         // 1. Seed Roles
         $roles = [
+            'ADMIN',
             'LAPANGAN', 
             'ENGINEER', 
             'PURCHASING_LEGAL', 
@@ -31,13 +32,14 @@ class DatabaseSeeder extends Seeder
             $roleMap[$roleName] = Role::create(['role_name' => $roleName])->id;
         }
 
-        // 2. Seed Users
+        // 2. Seed Users (password: "password", email verified so middleware 'verified' passes)
         foreach ($roles as $roleName) {
             User::create([
                 'name' => ucwords(strtolower(str_replace('_', ' ', $roleName))),
                 'email' => strtolower($roleName) . '@erp.com',
                 'password' => Hash::make('password'),
-                'role_id' => $roleMap[$roleName]
+                'role_id' => $roleMap[$roleName],
+                'email_verified_at' => now(),
             ]);
         }
 

@@ -20,4 +20,9 @@ class Invoice extends Model
     {
         return $this->hasMany(InvoiceAttachment::class);
     }
+
+    public function transactions()
+    {
+        return $this->hasMany(Transaction::class);
+    }
 }

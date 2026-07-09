@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class PurchaseOrder extends Model
 {
-    protected $fillable = ['project_id', 'po_number', 'date', 'supplier_name', 'subtotal', 'tax_amount', 'total_amount', 'payment_terms', 'status', 'created_by'];
+    protected $fillable = ['project_id', 'po_number', 'date', 'supplier_name', 'subtotal', 'tax_amount', 'total_amount', 'payment_terms', 'status', 'created_by', 'approved_by'];
 
     public function project()
     {
