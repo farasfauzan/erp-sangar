@@ -8,10 +8,15 @@ const docType = (invoice) => invoice.invoiceable_type?.includes('PurchaseOrder')
 
 export default function ApprovalDashboard() {
     const [data, setData] = useState({ pos: [], spks: [], opnames: [], invoices: [], funds: [] });
+    const [rabPending, setRabPending] = useState([]);
+    const [rabProjectId, setRabProjectId] = useState('');
+    const [rabSelected, setRabSelected] = useState(new Set());
+    const [projects, setProjects] = useState([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         fetchData();
+        axios.get('/api/projects').then(res => setProjects(res.data.data || res.data || [])).catch(() => { });
     }, []);
 
     const fetchData = async () => {
@@ -25,6 +30,52 @@ export default function ApprovalDashboard() {
         ]);
         setData({ pos: pos.data, spks: spks.data, opnames: opnames.data, invoices: invoices.data, funds: funds.data });
         setLoading(false);
+    };
+
+    const fetchRabPending = async (projectId) => {
+        if (!projectId) { setRabPending([]); setRabSelected(new Set()); return; }
+        try {
+            const res = await axios.get('/api/rab', { params: { project_id: projectId, all: 1 } });
+            const items = (res.data.data || []).filter(i => i.status === 'PENDING');
+            setRabPending(items);
+            setRabSelected(new Set());
+        } catch { setRabPending([]); }
+    };
+
+    const toggleRabSelect = (id) => {
+        setRabSelected(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
+    };
+
+    const toggleRabAll = () => {
+        if (rabSelected.size === rabPending.length) setRabSelected(new Set());
+        else setRabSelected(new Set(rabPending.map(i => i.id)));
+    };
+
+    const approveRabSelected = async () => {
+        if (rabSelected.size === 0) return alert('Pilih item terlebih dahulu.');
+        if (!confirm(`Setujui ${rabSelected.size} item RAB terpilih?`)) return;
+        try {
+            await axios.post('/api/rab/approve', { item_ids: [...rabSelected] });
+            fetchRabPending(rabProjectId);
+        } catch (err) { alert(err.response?.data?.message || 'Gagal approve.'); }
+    };
+
+    const rejectRabSelected = async () => {
+        if (rabSelected.size === 0) return alert('Pilih item terlebih dahulu.');
+        if (!confirm(`Tolak ${rabSelected.size} item RAB terpilih?`)) return;
+        try {
+            await axios.post('/api/rab/reject', { item_ids: [...rabSelected] });
+            fetchRabPending(rabProjectId);
+        } catch (err) { alert(err.response?.data?.message || 'Gagal reject.'); }
+    };
+
+    const approveRabAll = async () => {
+        if (!rabProjectId) return;
+        if (!confirm('Setujui SEMUA item RAB pending untuk proyek ini?')) return;
+        try {
+            await axios.post('/api/rab/approve', { project_id: parseInt(rabProjectId) });
+            fetchRabPending(rabProjectId);
+        } catch (err) { alert(err.response?.data?.message || 'Gagal approve.'); }
     };
 
     const run = async (method, url, message, payload = {}) => {
@@ -56,6 +107,69 @@ export default function ApprovalDashboard() {
                 <div className="mx-auto max-w-7xl space-y-6 sm:px-6 lg:px-8">
                     {loading ? <p>Memuat...</p> : (
                         <>
+                            {/* RAB Approval Section */}
+                            <div className="overflow-hidden bg-white shadow-sm sm:rounded-lg">
+                                <div className="p-6">
+                                    <h3 className="mb-4 text-lg font-bold">Approval RAB Per Item</h3>
+                                    <div className="mb-4 flex items-end gap-3">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Pilih Proyek</label>
+                                            <select
+                                                value={rabProjectId}
+                                                onChange={(e) => { setRabProjectId(e.target.value); fetchRabPending(e.target.value); }}
+                                                className="rounded border-gray-300 text-sm"
+                                            >
+                                                <option value="">-- Pilih --</option>
+                                                {projects.map(p => <option key={p.id} value={p.id}>{p.project_name || p.name}</option>)}
+                                            </select>
+                                        </div>
+                                        {rabPending.length > 0 && (
+                                            <div className="flex gap-2">
+                                                <Button onClick={approveRabSelected}>Setujui Terpilih ({rabSelected.size})</Button>
+                                                <Button danger onClick={rejectRabSelected}>Tolak Terpilih ({rabSelected.size})</Button>
+                                                <Button onClick={approveRabAll}>Setujui Semua ({rabPending.length})</Button>
+                                            </div>
+                                        )}
+                                    </div>
+                                    {rabPending.length > 0 ? (
+                                        <table className="min-w-full divide-y divide-gray-200">
+                                            <thead className="bg-gray-50">
+                                                <tr>
+                                                    <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">
+                                                        <input type="checkbox" checked={rabSelected.size === rabPending.length && rabPending.length > 0} onChange={toggleRabAll} />
+                                                    </th>
+                                                    <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">Kode</th>
+                                                    <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">Uraian</th>
+                                                    <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">Kategori</th>
+                                                    <th className="px-3 py-2 text-right text-xs font-medium uppercase text-gray-500">Volume</th>
+                                                    <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">Satuan</th>
+                                                    <th className="px-3 py-2 text-right text-xs font-medium uppercase text-gray-500">Harga Satuan</th>
+                                                    <th className="px-3 py-2 text-right text-xs font-medium uppercase text-gray-500">Jumlah</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-gray-200 bg-white">
+                                                {rabPending.map((item) => (
+                                                    <tr key={item.id} className={rabSelected.has(item.id) ? 'bg-emerald-50' : ''}>
+                                                        <td className="px-3 py-2">
+                                                            <input type="checkbox" checked={rabSelected.has(item.id)} onChange={() => toggleRabSelect(item.id)} />
+                                                        </td>
+                                                        <td className="px-3 py-2 text-sm font-mono">{item.code_item}</td>
+                                                        <td className="px-3 py-2 text-sm">{item.description}</td>
+                                                        <td className="px-3 py-2 text-sm text-gray-500">{item.category || '-'}</td>
+                                                        <td className="px-3 py-2 text-sm text-right">{item.volume}</td>
+                                                        <td className="px-3 py-2 text-sm">{item.unit}</td>
+                                                        <td className="px-3 py-2 text-sm text-right">{money(item.unit_price)}</td>
+                                                        <td className="px-3 py-2 text-sm text-right font-semibold">{money(item.total_price)}</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    ) : (
+                                        <p className="text-sm text-gray-500">{rabProjectId ? 'Tidak ada item RAB pending untuk proyek ini.' : 'Pilih proyek untuk melihat item RAB pending.'}</p>
+                                    )}
+                                </div>
+                            </div>
+
                             <Section title="Approval PO" empty="Tidak ada PO menunggu approval.">
                                 {pendingPos.map((po) => (
                                     <tr key={po.id}>

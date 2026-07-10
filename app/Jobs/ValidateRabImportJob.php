@@ -56,6 +56,7 @@ class ValidateRabImportJob implements ShouldQueue
                 }
 
                 $currentCategory = $sheetInfo['sheetName']; // default category = sheet name
+                $currentSectionCode = '';
 
                 foreach ($this->streamRows($job->file_path, $job->file_type, $sheetInfo['sheetName']) as $idx => $row) {
                     if ($idx <= $sheetInfo['headerIndex']) continue;
@@ -64,18 +65,21 @@ class ValidateRabImportJob implements ShouldQueue
                     $descCol = $sheetInfo['colMap']['uraian'] ?? -1;
                     $volCol = $sheetInfo['colMap']['volume'] ?? -1;
                     $priceCol = $sheetInfo['colMap']['harga_satuan'] ?? -1;
+                    $kodeCol = $sheetInfo['colMap']['kode'] ?? -1;
                     $desc = trim((string)($row[$descCol] ?? ''));
                     $vol = $row[$volCol] ?? null;
                     $price = $row[$priceCol] ?? null;
                     $amount = $row[$sheetInfo['colMap']['jumlah'] ?? -1] ?? null;
+                    $kode = trim((string)($row[$kodeCol] ?? ''));
 
                     if ($desc !== '' && $vol === null && $price === null && $amount === null) {
                         // This is a section header row — use as category for subsequent rows
                         $currentCategory = $desc;
+                        $currentSectionCode = $kode;
                         continue;
                     }
 
-                    $normalized = $this->normalizeRabRow($row, $sheetInfo['colMap'], $idx + 1);
+                    $normalized = $this->normalizeRabRow($row, $sheetInfo['colMap'], $idx + 1, $currentSectionCode);
                     
                     if (is_array($normalized) && isset($normalized['error'])) {
                         $errors[] = "Sheet '{$sheetInfo['sheetName']}' {$normalized['error']}";

@@ -391,7 +391,7 @@ trait HandlesRabParsing
     /**
      * Normalize row and return data or validation error array.
      */
-    protected function normalizeRabRow(array $row, array $columnMap, int $rowNumber): ?array
+    protected function normalizeRabRow(array $row, array $columnMap, int $rowNumber, ?string $currentSectionCode = null): ?array
     {
         $description = trim((string) ($row[$columnMap['uraian']] ?? ''));
         
@@ -462,7 +462,17 @@ trait HandlesRabParsing
         $category = trim((string) ($row[$columnMap['kategori'] ?? -1] ?? '')) ?: null;
         $code = trim((string) ($row[$columnMap['kode'] ?? -1] ?? ''));
         if ($code === '') {
-            $code = $this->getNextAutoCode($category);
+            $parentCode = trim((string)$currentSectionCode);
+            if ($parentCode !== '') {
+                $prefix = rtrim($parentCode, '.');
+                if (!isset($this->codeCounters[$prefix])) {
+                    $this->codeCounters[$prefix] = 1;
+                }
+                $num = $this->codeCounters[$prefix]++;
+                $code = $prefix . '.' . str_pad($num, 2, '0', STR_PAD_LEFT);
+            } else {
+                $code = $this->getNextAutoCode($category);
+            }
         }
 
         return [

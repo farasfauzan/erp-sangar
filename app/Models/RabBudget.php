@@ -69,10 +69,34 @@ class RabBudget extends Model
             ]);
     }
 
+    // Approve selected items by ID
+    public static function approveSelected(array $itemIds, User $user): int
+    {
+        return static::whereIn('id', $itemIds)
+            ->where('status', self::STATUS_PENDING)
+            ->update([
+                'status'      => self::STATUS_APPROVED,
+                'approved_by' => $user->id,
+                'approved_at' => now(),
+            ]);
+    }
+
     // Reject (bulk — all pending items for a project)
     public static function rejectAll(int $projectId, User $user): int
     {
         return static::where('project_id', $projectId)
+            ->where('status', self::STATUS_PENDING)
+            ->update([
+                'status'      => self::STATUS_REJECTED,
+                'approved_by' => $user->id,
+                'approved_at' => now(),
+            ]);
+    }
+
+    // Reject selected items by ID
+    public static function rejectSelected(array $itemIds, User $user): int
+    {
+        return static::whereIn('id', $itemIds)
             ->where('status', self::STATUS_PENDING)
             ->update([
                 'status'      => self::STATUS_REJECTED,

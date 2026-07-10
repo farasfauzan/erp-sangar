@@ -474,22 +474,46 @@ class RabBudgetController extends Controller
 
     public function approve(Request $request)
     {
-        $request->validate(['project_id' => 'required|exists:projects,id']);
-        $count = RabBudget::approveAll($request->project_id, Auth::user());
+        $request->validate([
+            'project_id' => 'required_without:item_ids|exists:projects,id',
+            'item_ids' => 'required_without:project_id|array|min:1',
+            'item_ids.*' => 'integer|exists:rab_budgets,id',
+        ]);
+
+        if ($request->has('item_ids')) {
+            $count = RabBudget::approveSelected($request->item_ids, Auth::user());
+            $msg = "{$count} item RAB terpilih disetujui.";
+        } else {
+            $count = RabBudget::approveAll($request->project_id, Auth::user());
+            $msg = "{$count} item RAB disetujui.";
+        }
+
         return response()->json([
             'success' => true,
-            'message' => "{$count} item RAB disetujui.",
+            'message' => $msg,
             'data' => ['approved' => $count],
         ]);
     }
 
     public function reject(Request $request)
     {
-        $request->validate(['project_id' => 'required|exists:projects,id']);
-        $count = RabBudget::rejectAll($request->project_id, Auth::user());
+        $request->validate([
+            'project_id' => 'required_without:item_ids|exists:projects,id',
+            'item_ids' => 'required_without:project_id|array|min:1',
+            'item_ids.*' => 'integer|exists:rab_budgets,id',
+        ]);
+
+        if ($request->has('item_ids')) {
+            $count = RabBudget::rejectSelected($request->item_ids, Auth::user());
+            $msg = "{$count} item RAB terpilih ditolak.";
+        } else {
+            $count = RabBudget::rejectAll($request->project_id, Auth::user());
+            $msg = "{$count} item RAB ditolak.";
+        }
+
         return response()->json([
             'success' => true,
-            'message' => "{$count} item RAB ditolak.",
+            'message' => $msg,
             'data' => ['rejected' => $count],
         ]);
     }
