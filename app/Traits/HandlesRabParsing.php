@@ -276,6 +276,11 @@ trait HandlesRabParsing
 
         $s = str_replace(['Rp', 'rp', 'RP', 'Rp.', 'Rp. ', ' '], '', $s);
 
+        // Remove parentheses notation like "(3)" → treat as section indicator → skip
+        if (preg_match('/^\(.*\)$/', $s)) {
+            return null;
+        }
+
         // Check directly numeric
         if (is_numeric($s)) {
             return (float)$s;
@@ -329,9 +334,18 @@ trait HandlesRabParsing
             return null; // Skip section headings
         }
 
+        // Skip total/summary rows by description pattern
+        $descLower = strtolower($description);
+        if (str_contains($descLower, 'total') || str_contains($descLower, 'subtotal') || str_contains($descLower, 'sub total') || str_contains($descLower, 'grand total') || str_contains($descLower, 'jumlah keseluruhan') || str_contains($descLower, 'total nilai') || str_contains($descLower, 'total penawaran') || str_contains($descLower, 'total harga')) {
+            return null;
+        }
+
         // Strict numeric validation
         $volume = $this->validateNumber($rawVolume, 'Volume', $rowNumber, $description);
         if ($volume === null) {
+            if ($rawUnitPrice === null && $rawTotalPrice === null) {
+                return null;
+            }
             return ['error' => "Baris {$rowNumber} ({$description}): Volume '{$rawVolume}' tidak valid. Harus berupa angka."];
         }
 
@@ -582,11 +596,9 @@ trait HandlesRabParsing
                 }
             }
 
-            $requiredCount = 0;
-            foreach ($requiredCols as $col) {
-                if (isset($colMap[$col])) $requiredCount++;
+            if ($this->columnMapError($colMap) !== null) {
+                continue;
             }
-            if ($requiredCount === 0) continue;
 
             $dataRows = 0;
             $numericRows = 0;
