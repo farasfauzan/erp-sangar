@@ -476,6 +476,12 @@ trait HandlesRabParsing
         }
 
         $category = trim((string) ($row[$columnMap['kategori'] ?? -1] ?? '')) ?: null;
+
+        // Auto-classify if no category column or empty
+        if ($category === null) {
+            $category = $this->autoClassifyCategory($description);
+        }
+
         $code = trim((string) ($row[$columnMap['kode'] ?? -1] ?? ''));
         if ($code === '') {
             $parentCode = trim((string)$currentSectionCode);
@@ -731,6 +737,195 @@ trait HandlesRabParsing
             return 'Subkon';
         }
         return null;
+    }
+
+    /**
+     * Call Gemini LLM to classify construction item.
+     */
+    protected function classifyWithLLM(string $description): ?string
+    {
+        $key = env('GEMINI_API_KEY');
+        if (!$key) return null;
+
+        try {
+            $categories = [
+                'Pekerjaan Persiapan', 'Pekerjaan Tanah', 'Pekerjaan Pondasi',
+                'Pekerjaan Beton', 'Pekerjaan Batu', 'Pekerjaan Besi',
+                'Pekerjaan Kayu', 'Pekerjaan Atap', 'Pekerjaan Plafon',
+                'Pekerjaan Lantai', 'Pekerjaan Dinding', 'Pekerjaan Cat',
+                'Pekerjaan Sanitari', 'Pekerjaan Mekanikal', 'Pekerjaan Elektrikal',
+                'Pekerjaan Bongkar', 'Pekerjaan Landscape', 'Pekerjaan Mebelair'
+            ];
+
+            $response = \Illuminate\Support\Facades\Http::timeout(3)
+                ->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={$key}", [
+                    'contents' => [
+                        [
+                            'parts' => [
+                                [
+                                    'text' => "Klasifikasikan deskripsi pekerjaan konstruksi berikut ke salah satu kategori standar ini saja:\n" .
+                                              implode(", ", $categories) . "\n\n" .
+                                              "Deskripsi: \"{$description}\"\n\n" .
+                                              "Aturan: Kembalikan HANYA nama kategori yang paling cocok secara persis (case-sensitive) tanpa tanda baca, penjelasan, atau teks tambahan apapun. Jika ragu atau tidak ada yang cocok, kembalikan teks \"Lainnya\"."
+                                ]
+                            ]
+                        ]
+                    ]
+                ]);
+
+            if ($response->successful()) {
+                $text = trim($response->json('candidates.0.content.parts.0.text') ?? '');
+                foreach ($categories as $cat) {
+                    if (strcasecmp($text, $cat) === 0) {
+                        return $cat;
+                    }
+                }
+            }
+        } catch (\Throwable $e) {
+            // Silently fail and let the keyword scoring fallback take over
+        }
+
+        return null;
+    }
+
+    /**
+     * Auto-classify RAB item into construction work category based on description.
+     * Uses keyword scoring — highest score wins. Returns category string or null.
+     */
+    protected function autoClassifyCategory(string $description): ?string
+    {
+        $desc = strtolower(trim($description));
+        if ($desc === '') return null;
+
+        $llmResult = $this->classifyWithLLM($description);
+        if ($llmResult !== null) {
+            return $llmResult;
+        }
+
+        $categories = [
+            'Pekerjaan Persiapan' => [
+                'pembersihan', 'clearing', 'pemotongan pohon', 'pemagaran', 'hoarding',
+                'mobilisasi', 'demobilisasi', 'papan nama', 'barak', 'gudang',
+            ],
+            'Pekerjaan Tanah' => [
+                'galian', 'urugan', 'tanah', 'cut and fill', 'timbunan', 'pemadatan',
+                'tanah urug', 'sirtu', 'screeding', 'grading', 'excavation',
+                'gali tanah', 'urug tanah', 'tanah merah', 'tanah biasa', 'pasir urug',
+                'stukadoor tanah', 'pembuangan tanah', 'boring', 'bor pile',
+            ],
+            'Pekerjaan Pondasi' => [
+                'pondasi', 'footplate', 'foot plat', 'bored pile', 'tiang pancang',
+                'sumuran', 'straus', 'pile cap', 'sloof', 'balok sloof',
+                'kompensasi', 'anak tiang', 'piles',
+            ],
+            'Pekerjaan Beton' => [
+                'beton', 'cor', 'readymix', 'ready mix', 'mutu beton', 'bekisting',
+                'bekisting', 'kayu bekisting', 'begisting', 'balok', 'kolom',
+                'plat lantai', 'ring balk', 'ringbalok', 'kolom praktis',
+                'tangga beton', 'dak beton', 'struktur beton', 'adukan beton',
+                'screed', 'stuktur', 'stuktural',
+            ],
+            'Pekerjaan Batu' => [
+                'batu bata', 'pasangan batu', 'bata ringan', 'bata merah', 'batako',
+                'hebel', 'bata expose', 'batu alam', 'batu kali', 'batu pondasi',
+                'plesteran', 'acian', 'nat', 'grouting', 'mortar',
+            ],
+            'Pekerjaan Besi' => [
+                'besi', 'steel', 'baja', 'reinforcement', 'tulangan', 'sengkang',
+                'begel', 'batang', 'wiremesh', 'dowel', 'anchor bolt',
+                'hollow', 'kanal', 'cnp', 'wf', 'besi siku', 'plat besi',
+                'rangka atap baja', 'struktur baja', 'baja ringan',
+            ],
+            'Pekerjaan Kayu' => [
+                'kayu', 'wood', 'papan', 'multipleks', 'triplek', 'plywood',
+                'kasau', 'reng', 'balok kayu', 'kosen', 'kusen', 'pintu',
+                'jendela', 'daun pintu', 'daun jendela', 'engsel', 'kunci',
+                'handle', 'grendel', 'lambersering', 'parquet', 'parket',
+                'lantai kayu', 'decking',
+            ],
+            'Pekerjaan Atap' => [
+                'atap', 'genteng', 'seng', 'spandek', 'trimdek', 'roofing',
+                'atap seng', 'atap beton', 'atap metal', 'atap zincalume',
+                'atap upvc', 'atap polycarbonate', 'talang', 'nok', 'lisplang',
+                'karpus', 'atap sirap', 'atap rumbia',
+            ],
+            'Pekerjaan Plafon' => [
+                'plafon', 'ceiling', 'gypsum', 'gipsum', 'rangka plafon',
+                'partisi', 'pvc plafon', 'akustik', 'acoustic', 'fiber',
+                'kalsiboard', 'grc board', 'rangka hollow',
+            ],
+            'Pekerjaan Lantai' => [
+                'keramik', 'granit', 'marmer', 'ubin', 'lantai', 'flooring',
+                'ubin lantai', 'homogeneous', 'vinyl', 'epoxy lantai',
+                'penutup lantai', 'nat keramik', 'skirting', 'plint',
+                'mozaik', 'teraso', 'paving', 'kanstin', 'conblock',
+            ],
+            'Pekerjaan Dinding' => [
+                'dinding', 'tembok', 'wall', 'partisi', 'cladding',
+                'dinding kaca', 'curtain wall', 'facades', 'panel dinding',
+                'acp', 'aluminium composite', 'kaca', 'glass',
+            ],
+            'Pekerjaan Cat' => [
+                'cat', 'paint', 'pengecatan', 'mengecat', 'dempul', 'plamir',
+                'wallpaper', 'wallcovering', 'anti bocor', 'waterproofing',
+                'cat minyak', 'cat tembok', 'cat besi', 'cat kayu',
+                'melamic', 'vernis', 'politur', 'coating',
+            ],
+            'Pekerjaan Sanitari' => [
+                'sanitari', 'sanitary', 'closet', 'toilet', 'kloset', 'urinoir',
+                'wastafel', 'shower', 'bak mandi', 'kran', 'faucet',
+                'saluran air', 'pipa air', 'plumbing', 'drainase', 'got',
+                'floor drain', 'grease trap', 'septictank', 'septic tank',
+                'sumur resapan', 'toren', 'tangki air', 'pompa air',
+            ],
+            'Pekerjaan Mekanikal' => [
+                'mekanikal', 'ac', 'air conditioning', 'hvac', 'ahu', 'fcu',
+                'kompresor', 'chiller', 'cooling tower', 'ventilasi',
+                'exhaust fan', 'ducting', 'instalasi gas', 'fire hydrant',
+                'sprinkler', 'pompa kebakaran', 'fm 200', 'alat pemadam',
+                'lift', 'elevator', 'escalator', 'genset', 'generator',
+            ],
+            'Pekerjaan Elektrikal' => [
+                'elektrikal', 'listrik', 'kabel', 'instalasi listrik', 'mcb',
+                'panel listrik', 'lampu', 'lighting', 'led', 'saklar',
+                'stop kontak', 'kotak saklar', 'sekring', 'kapasitor',
+                'transformator', 'trafo', 'genset', 'ats', 'kapasitor bank',
+                'grounding', 'penangkal petir', 'lightning protection',
+                'cctv', 'fire alarm', 'bell', 'intercom', 'sound system',
+                'data', 'network', 'fiber optic', 'structured cabling',
+            ],
+            'Pekerjaan Bongkar' => [
+                'bongkar', 'demolition', 'pembongkaran', 'peruntuhan',
+            ],
+            'Pekerjaan Landscape' => [
+                'landscape', 'taman', 'tanaman', 'rumput', 'pohon', 'paving',
+                'perkerasan', 'jalan taman', 'pot tanaman', 'irrigasi taman',
+                'gazebo', 'pergola', 'carport', 'pagar', 'gerbang',
+            ],
+            'Pekerjaan Mebelair' => [
+                'mebelair', 'meubel', 'furniture', 'lemari', 'meja', 'kursi',
+                'rak', 'kitchen set', 'backdrop', 'counter', 'display',
+            ],
+        ];
+
+        $scores = [];
+        foreach ($categories as $catName => $keywords) {
+            $score = 0;
+            foreach ($keywords as $kw) {
+                if (str_contains($desc, $kw)) {
+                    // Longer keyword match = higher relevance
+                    $score += strlen($kw);
+                }
+            }
+            if ($score > 0) {
+                $scores[$catName] = $score;
+            }
+        }
+
+        if (empty($scores)) return null;
+
+        arsort($scores);
+        return array_key_first($scores);
     }
 
     /**
