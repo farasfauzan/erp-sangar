@@ -551,6 +551,62 @@ trait HandlesRabParsing
     }
 
     /**
+     * Heuristically determine if a sheet is a non-RAB sheet (e.g., AHS, DHBU, Rekap, TKDN, Schedule).
+     */
+    protected function isNonRabSheet(string $sheetName, array $rows, int $headerRowIndex): bool
+    {
+        $nameLower = strtolower($sheetName);
+        $skipKeywords = [
+            'analisa', 'analisis', 'analysis', 'ahs', 'ahsp', 'anl.', 'dhbu', 'dhsp', 'harga', 
+            'bahan', 'upah', 'tkdn', 'impor', 'import', 'rekap', 'schd', 'kurva', 
+            'curve', 'flow', 'terbilang', 'koefisien', 'schedule', 'time schedule', 'ts', 'hit. me'
+        ];
+
+        foreach ($skipKeywords as $keyword) {
+            if (str_contains($nameLower, $keyword)) {
+                return true;
+            }
+        }
+
+        // Scan first 8 rows of the sheet for metadata keywords
+        foreach (array_slice($rows, 0, 8) as $row) {
+            foreach ($row as $cell) {
+                if ($cell === null) continue;
+                $cellLower = strtolower(trim((string)$cell));
+                if (
+                    str_contains($cellLower, 'tkdn') || 
+                    str_contains($cellLower, 'tingkat komponen dalam negeri') || 
+                    str_contains($cellLower, 'daftar barang yang diimpor') || 
+                    str_contains($cellLower, 'analisa satuan') || 
+                    str_contains($cellLower, 'analisa harga') ||
+                    str_contains($cellLower, 'analisa pekerjaan') ||
+                    str_contains($cellLower, 'daftar harga')
+                ) {
+                    return true;
+                }
+            }
+        }
+
+        // Check columns in the header row for coefficient/analysis keywords
+        $headerRow = $rows[$headerRowIndex] ?? [];
+        foreach ($headerRow as $cell) {
+            if ($cell === null) continue;
+            $cellLower = strtolower(trim((string)$cell));
+            if (
+                str_contains($cellLower, 'koefisien') || 
+                str_contains($cellLower, 'koef') || 
+                str_contains($cellLower, 'coefficient') || 
+                str_contains($cellLower, 'analisa') || 
+                str_contains($cellLower, 'hsp')
+            ) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Identify all sheets that have a valid RAB structure.
      */
     protected function findValidSheets(array $sheets): array
@@ -589,6 +645,10 @@ trait HandlesRabParsing
             }
 
             if ($headerRowIndex === null) continue;
+
+            if ($this->isNonRabSheet($sheetName, $rows, $headerRowIndex)) {
+                continue;
+            }
 
             $colMap = $this->mapColumns($rows[$headerRowIndex]);
             if (!isset($colMap['uraian'])) continue;
