@@ -327,6 +327,22 @@ trait HandlesRabParsing
             $cat = 'ITEM';
         }
         
+        $resCat = $this->detectResourceCategory($cat);
+        if ($resCat !== null) {
+            $prefix = [
+                'Material' => 'M',
+                'Upah' => 'T',
+                'Alat' => 'A',
+                'Subkon' => 'S',
+            ][$resCat] ?? 'M';
+            
+            if (!isset($this->codeCounters[$prefix])) {
+                $this->codeCounters[$prefix] = 10001;
+            }
+            $num = $this->codeCounters[$prefix]++;
+            return $prefix . $num;
+        }
+
         $prefix = strtoupper(substr(preg_replace('/[^A-Za-z0-9]/', '', $cat), 0, 3));
         if ($prefix === '') {
             $prefix = 'ITEM';
