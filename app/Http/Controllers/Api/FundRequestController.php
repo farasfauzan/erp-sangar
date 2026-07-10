@@ -6,7 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Models\ApprovalLog;
 use App\Models\FundRequest;
 use App\Models\Transaction;
+use App\Support\WorkflowState;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class FundRequestController extends Controller
 {
@@ -36,6 +38,11 @@ class FundRequestController extends Controller
     public function approve(Request $request, $id)
     {
         $fundRequest = FundRequest::findOrFail($id);
+        WorkflowState::require(
+            $fundRequest->status,
+            ['PENDING_APPROVAL'],
+            'Permohonan dana harus berstatus PENDING_APPROVAL sebelum disetujui.'
+        );
         $fundRequest->update([
             'status' => 'APPROVED',
             'approved_by' => $request->user()->id ?? 1,
@@ -44,6 +51,21 @@ class FundRequestController extends Controller
         $this->log($request, $fundRequest, 'APPROVE');
 
         return response()->json(['message' => 'Permohonan dana disetujui.', 'data' => $fundRequest]);
+    }
+
+    public function reject(Request $request, $id)
+    {
+        $fundRequest = FundRequest::findOrFail($id);
+        WorkflowState::require(
+            $fundRequest->status,
+            ['PENDING_APPROVAL'],
+            'Permohonan dana harus berstatus PENDING_APPROVAL sebelum ditolak.'
+        );
+
+        $fundRequest->update(['status' => 'REJECTED']);
+        $this->log($request, $fundRequest, 'REJECT');
+
+        return response()->json(['message' => 'Permohonan dana ditolak.', 'data' => $fundRequest]);
     }
 
     public function pay(Request $request, $id)
@@ -55,17 +77,36 @@ class FundRequestController extends Controller
             'proof_of_payment' => 'nullable|string',
         ]);
 
-        $fundRequest = FundRequest::findOrFail($id);
-        $fundRequest->update(['status' => 'PAID', 'paid_at' => now()]);
+        $fundRequest = DB::transaction(function () use ($validated, $request, $id) {
+            $fundRequest = FundRequest::query()->lockForUpdate()->findOrFail($id);
+            WorkflowState::require(
+                $fundRequest->status,
+                ['APPROVED'],
+                'Hanya permohonan dana yang sudah disetujui yang dapat dibayar.'
+            );
+            WorkflowState::requireAmount(
+                $validated['amount'] ?? $fundRequest->amount,
+                $fundRequest->amount,
+                'Nilai pembayaran harus sama dengan nilai permohonan dana karena pembayaran parsial belum didukung.'
+            );
 
-        Transaction::create([
-            'fund_request_id' => $fundRequest->id,
-            'payment_method' => $validated['payment_method'],
-            'amount' => $validated['amount'] ?? $fundRequest->amount,
-            'payment_date' => $validated['payment_date'] ?? now()->toDateString(),
-            'proof_of_payment' => $validated['proof_of_payment'] ?? null,
-        ]);
-        $this->log($request, $fundRequest, 'PAYMENT');
+            if ($fundRequest->transactions()->exists()) {
+                WorkflowState::fail('Permohonan dana ini sudah memiliki transaksi pembayaran.');
+            }
+
+            $fundRequest->update(['status' => 'PAID', 'paid_at' => now()]);
+
+            Transaction::create([
+                'fund_request_id' => $fundRequest->id,
+                'payment_method' => $validated['payment_method'],
+                'amount' => $validated['amount'] ?? $fundRequest->amount,
+                'payment_date' => $validated['payment_date'] ?? now()->toDateString(),
+                'proof_of_payment' => $validated['proof_of_payment'] ?? null,
+            ]);
+            $this->log($request, $fundRequest, 'PAYMENT');
+
+            return $fundRequest;
+        });
 
         return response()->json(['message' => 'Dana proyek dibayar dan bukti dicatat.', 'data' => $fundRequest->load('transactions')]);
     }
@@ -74,6 +115,11 @@ class FundRequestController extends Controller
     {
         $validated = $request->validate(['lpj_notes' => 'nullable|string']);
         $fundRequest = FundRequest::findOrFail($id);
+        WorkflowState::require(
+            $fundRequest->status,
+            ['PAID'],
+            'LPJ hanya dapat dikirim setelah permohonan dana dibayar.'
+        );
         $fundRequest->update([
             'status' => 'LPJ_SUBMITTED',
             'lpj_notes' => $validated['lpj_notes'] ?? null,
@@ -87,6 +133,11 @@ class FundRequestController extends Controller
     public function verifyLpj(Request $request, $id)
     {
         $fundRequest = FundRequest::findOrFail($id);
+        WorkflowState::require(
+            $fundRequest->status,
+            ['LPJ_SUBMITTED'],
+            'LPJ harus berstatus LPJ_SUBMITTED sebelum diverifikasi.'
+        );
         $fundRequest->update(['status' => 'LPJ_VERIFIED']);
         $this->log($request, $fundRequest, 'LPJ_VERIFY');
 

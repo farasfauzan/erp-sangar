@@ -4,14 +4,13 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\InventoryStock;
-use App\Models\GoodsReceipt;
 use Illuminate\Http\Request;
 
 class InventoryController extends Controller
 {
     public function index(Request $request)
     {
-        $query = InventoryStock::query();
+        $query = InventoryStock::with('rabBudget');
 
         if ($projectId = $request->get('project_id')) {
             $query->where('project_id', $projectId);
@@ -22,7 +21,7 @@ class InventoryController extends Controller
 
         // Low stock filter
         if ($request->boolean('low_stock')) {
-            $query->whereColumn('qty', '<', 'min_qty');
+            $query->whereColumn('quantity', '<=', 'min_quantity');
         }
 
         return response()->json([
@@ -35,36 +34,35 @@ class InventoryController extends Controller
     {
         $request->validate([
             'project_id'      => 'required|exists:projects,id',
+            'rab_budget_id'   => 'nullable|exists:rab_budgets,id',
             'item_name'       => 'required|string|max:255',
             'unit'            => 'nullable|string|max:50',
-            'qty'             => 'required|numeric|min:0.001',
-            'warehouse'       => 'nullable|string|max:255',
-            'goods_receipt_id' => 'nullable|exists:goods_receipts,id',
+            'quantity'        => 'required|numeric|min:0.001',
+            'location'        => 'nullable|string|max:255',
         ]);
 
-        $stock = InventoryStock::firstOrCreate(
-            [
-                'project_id' => $request->project_id,
-                'item_name'  => $request->item_name,
-                'warehouse'  => $request->warehouse ?? 'Main',
-            ],
-            ['unit' => $request->unit ?? 'Pcs', 'qty' => 0, 'min_qty' => 0]
-        );
-
-        $stock->increment('qty', $request->qty);
-
-        // Link to GR if provided
-        if ($request->goods_receipt_id) {
-            $gr = GoodsReceipt::find($request->goods_receipt_id);
-            if ($gr) {
-                $gr->update(['po_id' => $gr->po_id]); // noop — model already has observer for GR
-            }
+        $identity = ['project_id' => $request->project_id];
+        if ($request->rab_budget_id) {
+            $identity['rab_budget_id'] = $request->rab_budget_id;
+        } else {
+            $identity['item_name'] = $request->item_name;
+            $identity['location'] = $request->location ?? 'Main';
         }
+
+        $stock = InventoryStock::firstOrCreate($identity, [
+            'item_name' => $request->item_name,
+            'unit' => $request->unit ?? 'Pcs',
+            'quantity' => 0,
+            'min_quantity' => 0,
+            'location' => $request->location ?? 'Main',
+        ]);
+
+        $stock->increment('quantity', $request->quantity);
 
         return response()->json([
             'success' => true,
             'data' => $stock,
-            'message' => "Stok {$request->item_name} bertambah {$request->qty} {$stock->unit}",
+            'message' => "Stok {$request->item_name} bertambah {$request->quantity} {$stock->unit}",
         ]);
     }
 }

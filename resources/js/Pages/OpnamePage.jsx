@@ -29,11 +29,12 @@ export default function OpnamePage() {
         });
     }, []);
 
-    const selectedSpk = spks.find(s => s.id === parseInt(form.spk_id));
+    const approvedSpks = spks.filter((spk) => spk.status === 'APPROVED');
+    const selectedSpk = approvedSpks.find(s => s.id === parseInt(form.spk_id));
 
     const handlePercentageChange = (val) => {
         const pct = parseFloat(val) || 0;
-        const amount = selectedSpk ? (pct / 100) * selectedSpk.subtotal : 0;
+        const amount = selectedSpk ? (pct / 100) * selectedSpk.total_amount : 0;
         setForm({...form, progress_percentage: val, amount: Math.round(amount)});
     };
 
@@ -97,12 +98,13 @@ export default function OpnamePage() {
                                                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                                             >
                                                 <option value="">-- Pilih SPK --</option>
-                                                {spks.map(s => (
+                                                {approvedSpks.map(s => (
                                                     <option key={s.id} value={s.id}>
                                                         {s.spk_number} — {s.subcon_name} (Rp {Number(s.total_amount).toLocaleString('id-ID')})
                                                     </option>
                                                 ))}
                                             </select>
+                                            {!approvedSpks.length && <p className="mt-1 text-xs text-amber-700">Belum ada SPK yang disetujui.</p>}
                                         </div>
                                         <div>
                                             <label className="block text-sm font-medium text-gray-700">No. Opname</label>
@@ -121,7 +123,7 @@ export default function OpnamePage() {
                                     {selectedSpk && (
                                         <div className="bg-amber-50 p-3 rounded text-sm space-y-1">
                                             <div><strong>SPK:</strong> {selectedSpk.spk_number} | Subkon: {selectedSpk.subcon_name}</div>
-                                            <div><strong>Nilai Kontrak:</strong> Rp {Number(selectedSpk.subtotal).toLocaleString('id-ID')}</div>
+                                            <div><strong>Nilai Kontrak (termasuk PPN):</strong> Rp {Number(selectedSpk.total_amount).toLocaleString('id-ID')}</div>
                                             <div><strong>Nilai Klaim ({form.progress_percentage || 0}%):</strong> <span className="text-lg font-bold text-amber-700">Rp {Number(form.amount || 0).toLocaleString('id-ID')}</span></div>
                                         </div>
                                     )}

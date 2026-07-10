@@ -15,7 +15,7 @@ class InventoryStock extends Model
 
     public function rabBudget()
     {
-        return $this->belongsTo(RabBudget::class, 'rab_budget_id');
+        return $this->belongsTo(RabBudget::class, 'rab_budget_id')->withTrashed();
     }
 
     public function getLowStockAttribute(): bool

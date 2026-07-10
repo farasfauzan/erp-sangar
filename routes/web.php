@@ -58,11 +58,24 @@ Route::get('/fund-requests', function () {
     return Inertia::render('FundRequestPage');
 })->middleware(['auth', 'verified'])->name('fund-requests');
 
+Route::get('/spk', function () {
+    return Inertia::render('Spk');
+})->middleware(['auth', 'verified'])->name('spk');
+
+Route::get('/rab-control', function () {
+    return Inertia::render('RabControl');
+})->middleware(['auth', 'verified'])->name('rab-control');
+
 // RAB routes (web auth, not API token)
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/rab/preview', [\App\Http\Controllers\Api\RabBudgetController::class, 'preview']);
     Route::post('/rab/import', [\App\Http\Controllers\Api\RabBudgetController::class, 'autoImport']);
     Route::post('/rab/auto-import', [\App\Http\Controllers\Api\RabBudgetController::class, 'autoImport']);
+    Route::get('/rab/import-job/{id}', [\App\Http\Controllers\Api\RabBudgetController::class, 'getImportStatus']);
+    Route::post('/rab/import-job/{id}/confirm', [\App\Http\Controllers\Api\RabBudgetController::class, 'confirmImport']);
+    Route::post('/rab/import-async', [\App\Http\Controllers\Api\RabBudgetController::class, 'importAsync']);
     Route::get('/projects/{projectId}/rab', [\App\Http\Controllers\Api\RabBudgetController::class, 'index']);
+    Route::post('/rab/submit-for-approval', [\App\Http\Controllers\Api\RabBudgetController::class, 'submitForApproval']);
+    Route::post('/rab/approve', [\App\Http\Controllers\Api\RabBudgetController::class, 'approve']);
+    Route::post('/rab/reject', [\App\Http\Controllers\Api\RabBudgetController::class, 'reject']);
 });
-

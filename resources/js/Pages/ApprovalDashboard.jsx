@@ -7,7 +7,7 @@ const money = (value) => `Rp ${Number(value || 0).toLocaleString('id-ID')}`;
 const docType = (invoice) => invoice.invoiceable_type?.includes('PurchaseOrder') ? 'PO Material' : 'SPK Subkon';
 
 export default function ApprovalDashboard() {
-    const [data, setData] = useState({ pos: [], spks: [], invoices: [], funds: [] });
+    const [data, setData] = useState({ pos: [], spks: [], opnames: [], invoices: [], funds: [] });
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -19,10 +19,11 @@ export default function ApprovalDashboard() {
         const [pos, spks, invoices, funds] = await Promise.all([
             axios.get('/api/pos'),
             axios.get('/api/spks'),
+            axios.get('/api/opnames'),
             axios.get('/api/invoices'),
             axios.get('/api/fund-requests'),
         ]);
-        setData({ pos: pos.data, spks: spks.data, invoices: invoices.data, funds: funds.data });
+        setData({ pos: pos.data, spks: spks.data, opnames: opnames.data, invoices: invoices.data, funds: funds.data });
         setLoading(false);
     };
 
@@ -44,6 +45,7 @@ export default function ApprovalDashboard() {
 
     const pendingPos = data.pos.filter((po) => po.status === 'PENDING_APPROVAL');
     const pendingSpks = data.spks.filter((spk) => spk.status === 'PENDING_APPROVAL');
+    const pendingOpnames = data.opnames.filter((opname) => opname.status === 'PENDING');
     const pendingInvoices = data.invoices.filter((invoice) => ['PENDING_ENGINEER', 'ENGINEER_VERIFIED', 'PENDING_APPROVAL'].includes(invoice.status));
     const pendingFunds = data.funds.filter((fund) => ['PENDING_APPROVAL', 'LPJ_SUBMITTED'].includes(fund.status));
 
@@ -86,6 +88,22 @@ export default function ApprovalDashboard() {
                                 ))}
                             </Section>
 
+                            <Section title="Approval Opname" empty="Tidak ada opname menunggu approval.">
+                                {pendingOpnames.map((opname) => (
+                                    <tr key={opname.id}>
+                                        <Td strong>{opname.opname_number}</Td>
+                                        <Td>{opname.spk?.project?.project_name ?? 'N/A'}</Td>
+                                        <Td>{opname.spk?.spk_number ?? '-'}</Td>
+                                        <Td strong>{money(opname.amount)} ({opname.progress_percentage}%)</Td>
+                                        <Td>{opname.status}</Td>
+                                        <Td>
+                                            <Button onClick={() => run('put', `/api/opnames/${opname.id}/approve`, 'Setujui opname ini?')}>Setujui</Button>
+                                            <Button danger onClick={() => reject('opnames', opname.id)}>Tolak</Button>
+                                        </Td>
+                                    </tr>
+                                ))}
+                            </Section>
+
                             <Section title="Verifikasi & Approval Invoice" empty="Tidak ada invoice menunggu proses.">
                                 {pendingInvoices.map((invoice) => (
                                     <tr key={invoice.id}>
@@ -119,7 +137,10 @@ export default function ApprovalDashboard() {
                                         <Td>{fund.status}</Td>
                                         <Td>
                                             {fund.status === 'PENDING_APPROVAL' && (
-                                                <Button onClick={() => run('put', `/api/fund-requests/${fund.id}/approve`, 'Setujui permohonan dana ini?')}>Setujui</Button>
+                                                <>
+                                                    <Button onClick={() => run('put', `/api/fund-requests/${fund.id}/approve`, 'Setujui permohonan dana ini?')}>Setujui</Button>
+                                                    <Button danger onClick={() => reject('fund-requests', fund.id)}>Tolak</Button>
+                                                </>
                                             )}
                                             {fund.status === 'LPJ_SUBMITTED' && (
                                                 <Button onClick={() => run('put', `/api/fund-requests/${fund.id}/lpj-verify`, 'Verifikasi LPJ ini?')}>Verifikasi LPJ</Button>

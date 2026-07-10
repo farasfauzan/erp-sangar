@@ -17,6 +17,7 @@ export default function GoodsReceipt() {
         delivery_note_number: '',
         receiver_name: '',
         notes: '',
+        items: [],
     });
 
     useEffect(() => {
@@ -32,13 +33,22 @@ export default function GoodsReceipt() {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        const items = form.items.filter((item) => Number(item.quantity_received) > 0);
+        if (!items.length) {
+            setMessage('Masukkan jumlah untuk setidaknya satu item yang diterima.');
+            return;
+        }
         try {
-            const res = await axios.post('/api/goods-receipts', form);
+            const res = await axios.post('/api/goods-receipts', { ...form, items });
             setMessage(res.data.message);
             setShowForm(false);
             // Refresh list
-            const grRes = await axios.get('/api/goods-receipts');
+            const [grRes, poRes] = await Promise.all([
+                axios.get('/api/goods-receipts'),
+                axios.get('/api/pos'),
+            ]);
             setReceipts(grRes.data);
+            setPos(poRes.data);
             setForm({
                 ...form,
                 receipt_number: 'GR-' + Math.floor(Math.random() * 100000),
@@ -46,13 +56,37 @@ export default function GoodsReceipt() {
                 receiver_name: '',
                 notes: '',
                 purchase_order_id: '',
+                items: [],
             });
         } catch (err) {
             setMessage(err.response?.data?.message || 'Gagal mencatat penerimaan.');
         }
     };
 
-    const selectedPo = pos.find(p => p.id === parseInt(form.purchase_order_id));
+    const receivablePos = pos.filter((po) => po.status === 'APPROVED');
+    const partiallyReceivablePos = pos.filter((po) => po.status === 'PARTIALLY_RECEIVED');
+    const availablePos = [...receivablePos, ...partiallyReceivablePos];
+    const selectedPo = availablePos.find(p => p.id === parseInt(form.purchase_order_id));
+    const receivedQuantity = (poItemId) => receipts.reduce((total, receipt) => total + (receipt.items || [])
+        .filter((item) => item.po_item_id === poItemId)
+        .reduce((subtotal, item) => subtotal + Number(item.quantity_received || 0), 0), 0);
+
+    const selectPo = (poId) => {
+        const po = availablePos.find((item) => item.id === Number(poId));
+        setForm({
+            ...form,
+            purchase_order_id: poId,
+            items: (po?.items || []).map((item) => ({
+                po_item_id: item.id,
+                quantity_received: Math.max(0, Number(item.qty) - receivedQuantity(item.id)),
+            })).filter((item) => item.quantity_received > 0),
+        });
+    };
+
+    const setReceivedQuantity = (poItemId, value) => setForm({
+        ...form,
+        items: form.items.map((item) => item.po_item_id === poItemId ? { ...item, quantity_received: value } : item),
+    });
 
     return (
         <AuthenticatedLayout
@@ -90,16 +124,17 @@ export default function GoodsReceipt() {
                                             <select
                                                 required
                                                 value={form.purchase_order_id}
-                                                onChange={e => setForm({...form, purchase_order_id: e.target.value})}
+                                                onChange={e => selectPo(e.target.value)}
                                                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                                             >
                                                 <option value="">-- Pilih PO --</option>
-                                                {pos.map(po => (
+                                                {availablePos.map(po => (
                                                     <option key={po.id} value={po.id}>
-                                                        {po.po_number} — {po.supplier_name} (Rp {Number(po.total_amount).toLocaleString('id-ID')})
+                                                        {po.po_number} — {po.supplier_name} ({po.status})
                                                     </option>
                                                 ))}
                                             </select>
+                                            {!availablePos.length && <p className="mt-1 text-xs text-amber-700">Belum ada PO yang sudah disetujui dan siap diterima.</p>}
                                         </div>
                                         <div>
                                             <label className="block text-sm font-medium text-gray-700">No. Penerimaan</label>
@@ -122,6 +157,24 @@ export default function GoodsReceipt() {
                                     {selectedPo && (
                                         <div className="bg-blue-50 p-3 rounded text-sm">
                                             <strong>Detail PO:</strong> {selectedPo.po_number} | Supplier: {selectedPo.supplier_name} | Items: {selectedPo.items?.length || 0} barang | Total: Rp {Number(selectedPo.total_amount).toLocaleString('id-ID')}
+                                        </div>
+                                    )}
+
+                                    {selectedPo && (
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700">Jumlah Barang Diterima</label>
+                                            <div className="mt-1 overflow-hidden rounded border border-gray-200">
+                                                {(selectedPo.items || []).map((item) => {
+                                                    const received = receivedQuantity(item.id);
+                                                    const remaining = Math.max(0, Number(item.qty) - received);
+                                                    const formItem = form.items.find((entry) => entry.po_item_id === item.id);
+                                                    return <div key={item.id} className="grid grid-cols-[1fr_130px] gap-4 border-b border-gray-100 p-3 last:border-b-0">
+                                                        <div><p className="font-medium text-gray-900">{item.item_name}</p><p className="text-xs text-gray-500">PO: {item.qty} · Sudah diterima: {received} · Sisa: {remaining}</p></div>
+                                                        <input type="number" min="0" max={remaining} step="0.01" value={formItem?.quantity_received ?? 0} onChange={(event) => setReceivedQuantity(item.id, event.target.value)} className="w-full rounded border-gray-300" aria-label={`Jumlah diterima ${item.item_name}`} />
+                                                    </div>;
+                                                })}
+                                            </div>
+                                            <p className="mt-1 text-xs text-gray-500">Masukkan 0 untuk item yang belum datang. Stok hanya bertambah sesuai jumlah yang diterima.</p>
                                         </div>
                                     )}
 
@@ -151,6 +204,7 @@ export default function GoodsReceipt() {
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">No. Penerimaan</th>
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">No. PO</th>
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Proyek</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Barang Diterima</th>
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">No. Surat Jalan</th>
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Penerima</th>
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tanggal</th>
@@ -158,13 +212,22 @@ export default function GoodsReceipt() {
                                     </thead>
                                     <tbody className="bg-white divide-y divide-gray-200">
                                         {receipts.length === 0 ? (
-                                            <tr><td colSpan="6" className="px-6 py-4 text-center text-sm text-gray-500">Belum ada data penerimaan.</td></tr>
+                                            <tr><td colSpan="7" className="px-6 py-4 text-center text-sm text-gray-500">Belum ada data penerimaan.</td></tr>
                                         ) : (
                                             receipts.map((gr, idx) => (
                                                 <tr key={idx}>
                                                     <td className="px-6 py-4 text-sm font-medium text-gray-900">{gr.receipt_number}</td>
                                                     <td className="px-6 py-4 text-sm text-gray-500">{gr.purchase_order?.po_number ?? '-'}</td>
                                                     <td className="px-6 py-4 text-sm text-gray-500">{gr.purchase_order?.project?.project_name ?? '-'}</td>
+                                                    <td className="px-6 py-4 text-sm text-gray-500">
+                                                        <ul className="list-disc list-inside space-y-0.5">
+                                                            {(gr.items || []).map((item, idx2) => (
+                                                                <li key={idx2} className="text-xs text-gray-700">
+                                                                    {item.po_item?.item_name || 'Barang'}: <strong className="text-emerald-700">{Number(item.quantity_received).toLocaleString('id-ID')}</strong>
+                                                                </li>
+                                                            ))}
+                                                        </ul>
+                                                    </td>
                                                     <td className="px-6 py-4 text-sm text-gray-500">{gr.delivery_note_number || '-'}</td>
                                                     <td className="px-6 py-4 text-sm text-gray-500">{gr.receiver_name}</td>
                                                     <td className="px-6 py-4 text-sm text-gray-500">{gr.receipt_date}</td>

@@ -3,7 +3,14 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\InventoryStock;
 use App\Models\RabBudget;
+use App\Models\RabImportJob;
+use App\Models\PoItem;
+use App\Models\PurchaseRequisition;
+use App\Jobs\ValidateRabImportJob;
+use App\Jobs\ExecuteRabImportJob;
+use App\Traits\HandlesRabParsing;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -11,21 +18,26 @@ use Illuminate\Support\Facades\Log;
 
 class RabBudgetController extends Controller
 {
+    use HandlesRabParsing;
+
     /**
-     * Preview Excel (first 30 rows) - uses raw XML to avoid memory issues
+     * Preview Excel (first 30 rows)
      */
     public function preview(Request $request)
     {
         $request->validate([
-            'file' => 'required|file|mimes:xlsx,xls|max:51200',
+            'file' => 'required|file|mimes:xlsx,xls,csv,txt|max:51200',
         ]);
 
         $file = $request->file('file');
+        $type = strtolower($file->getClientOriginalExtension());
+        if ($type === 'txt') $type = 'csv';
+
         $rows = [];
         $errors = [];
 
         try {
-            $result = $this->parseXlsxRaw($file->getRealPath(), 30);
+            $result = $this->parseRaw($file->getRealPath(), $type, 30);
             $sheets = $result['sheets'];
             $errors = $result['errors'];
 
@@ -35,36 +47,30 @@ class RabBudgetController extends Controller
                 return response()->json([
                     'success' => false,
                     'message' => 'Header tidak ditemukan dalam 30 baris pertama.',
-                    'debug_sheets' => array_map(fn($rows) => count($rows), $sheets),
                 ], 422);
             }
 
-            $allRows = $best['rows'];
-            $headerRowIndex = $best['headerIndex'];
-            $colMap = $best['colMap'];
+            if ($message = $this->columnMapError($best['colMap'])) {
+                return response()->json(['success' => false, 'message' => $message], 422);
+            }
 
-            foreach ($allRows as $idx => $row) {
-                if ($idx <= $headerRowIndex) continue;
+            foreach ($best['rows'] as $idx => $row) {
+                if ($idx <= $best['headerIndex']) continue;
 
-                $uraian = trim((string)($row[$colMap['uraian']] ?? ''));
-                if ($uraian === '' || strtolower($uraian) === 'jumlah' || strtolower($uraian) === 'total') continue;
-
-                $volume = $this->parseNumber($row[$colMap['volume'] ?? -1] ?? null);
-                $satuan = trim((string)($row[$colMap['satuan'] ?? -1] ?? ''));
-                $harga = $this->parseNumber($row[$colMap['harga_satuan'] ?? -1] ?? null);
-                $jumlah = $this->parseNumber($row[$colMap['jumlah'] ?? -1] ?? null);
-
-                if ($volume && $harga && !$jumlah) {
-                    $jumlah = $volume * $harga;
+                $normalized = $this->normalizeRabRow($row, $best['colMap'], $idx + 1);
+                if (is_array($normalized) && isset($normalized['error'])) {
+                    $errors[] = $normalized['error'];
+                    continue;
                 }
+                if (! $normalized) continue;
 
                 $rows[] = [
-                    'no' => trim((string)($row[$colMap['no']] ?? '')),
-                    'uraian' => $uraian,
-                    'volume' => $volume,
-                    'satuan' => $satuan,
-                    'harga_satuan' => $harga,
-                    'jumlah' => $jumlah,
+                    'no' => $normalized['code_item'],
+                    'uraian' => $normalized['description'],
+                    'volume' => $normalized['volume'],
+                    'satuan' => $normalized['unit'],
+                    'harga_satuan' => $normalized['unit_price'],
+                    'jumlah' => $normalized['total_price'],
                 ];
             }
         } catch (\Exception $e) {
@@ -81,36 +87,34 @@ class RabBudgetController extends Controller
                 'rows' => $rows,
                 'total_rows' => count($rows),
                 'sheet_used' => $best['sheetName'],
-                'errors' => $errors,
-                'column_mapping' => $colMap,
+                'errors' => array_slice($errors, 0, 20),
+                'invalid_rows' => count($errors),
+                'column_mapping' => $best['colMap'],
             ],
         ]);
     }
 
     /**
-     * Auto-import: parse + insert in batches using raw XML
+     * Legacy Auto-import (synchronous) - kept for compatibility and feature tests
      */
     public function autoImport(Request $request)
     {
         $request->validate([
             'project_id' => 'required|exists:projects,id',
-            'file' => 'required|file|mimes:xlsx,xls|max:51200',
+            'file' => 'required|file|mimes:xlsx,xls,csv,txt|max:51200',
+            'confirm_replace' => 'nullable|boolean',
         ]);
 
         $file = $request->file('file');
         $projectId = $request->project_id;
-        $imported = 0;
-        $errors = [];
-        $batchSize = 200;
-        $batch = [];
+        $type = strtolower($file->getClientOriginalExtension());
+        if ($type === 'txt') $type = 'csv';
 
         try {
-            $result = $this->parseXlsxRaw($file->getRealPath(), null);
-            $sheets = $result['sheets'];
-            $errors = $result['errors'];
+            $rawResult = $this->parseRaw($file->getRealPath(), $type, 100);
+            $sheets = $rawResult['sheets'];
 
             $best = $this->findBestSheet($sheets);
-
             if ($best === null) {
                 return response()->json([
                     'success' => false,
@@ -118,368 +122,278 @@ class RabBudgetController extends Controller
                 ], 422);
             }
 
-            $allRows = $best['rows'];
-            $headerRowIndex = $best['headerIndex'];
-            $colMap = $best['colMap'];
+            if ($message = $this->columnMapError($best['colMap'])) {
+                return response()->json(['success' => false, 'message' => $message], 422);
+            }
 
-            DB::beginTransaction();
+            // Sync validation
+            $errors = [];
+            $newItems = [];
+            $rowCount = 0;
+            foreach ($this->streamRows($file->getRealPath(), $type, $best['sheetName']) as $idx => $row) {
+                if ($idx <= $best['headerIndex']) continue;
 
-            RabBudget::where('project_id', $projectId)->delete();
+                $normalized = $this->normalizeRabRow($row, $best['colMap'], $idx + 1);
+                if (is_array($normalized) && isset($normalized['error'])) {
+                    $errors[] = $normalized['error'];
+                    if (count($errors) >= 100) break;
+                    continue;
+                }
+                if (! $normalized) continue;
+                $newItems[] = $normalized;
+                $rowCount++;
+            }
 
-            foreach ($allRows as $idx => $row) {
-                if ($idx <= $headerRowIndex) continue;
+            if ($errors !== []) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Import dibatalkan. Perbaiki data pada baris yang ditandai.',
+                    'errors' => $errors,
+                    'invalid_rows' => count($errors),
+                ], 422);
+            }
 
-                $uraian = trim((string)($row[$colMap['uraian']] ?? ''));
-                if ($uraian === '' || strtolower($uraian) === 'jumlah' || strtolower($uraian) === 'total') continue;
+            // Check replacement confirmation
+            $currentCount = RabBudget::where('project_id', $projectId)->count();
+            if ($currentCount > 0 && ! $request->boolean('confirm_replace')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Proyek ini sudah memiliki {$currentCount} item RAB. Konfirmasi penggantian diperlukan.",
+                    'requires_confirmation' => true,
+                    'current_item_count' => $currentCount,
+                ], 422);
+            }
 
-                $volume = $this->parseNumber($row[$colMap['volume'] ?? -1] ?? null);
-                $satuan = trim((string)($row[$colMap['satuan'] ?? -1] ?? ''));
-                $harga = $this->parseNumber($row[$colMap['harga_satuan'] ?? -1] ?? null);
-                $jumlah = $this->parseNumber($row[$colMap['jumlah'] ?? -1] ?? null);
+            // Execute synchronously
+            $currentMaxVersion = RabBudget::where('project_id', $projectId)->max('version') ?? 0;
+            $newVersion = $currentMaxVersion + 1;
+            $batchSize = 200;
+            
+            $result = DB::transaction(function () use ($newItems, $projectId, $newVersion, $currentMaxVersion, $batchSize) {
+                $batch = [];
+                $imported = 0;
 
-                if ($volume && $harga && !$jumlah) {
-                    $jumlah = $volume * $harga;
+                foreach ($newItems as $normalized) {
+                    $batch[] = [
+                        'project_id' => $projectId,
+                        'version' => $newVersion,
+                        'code_item' => $normalized['code_item'],
+                        'description' => $normalized['description'],
+                        'volume' => $normalized['volume'],
+                        'unit' => $normalized['unit'],
+                        'unit_price' => $normalized['unit_price'],
+                        'total_price' => $normalized['total_price'],
+                        'category' => $normalized['category'],
+                        'status' => RabBudget::STATUS_DRAFT,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ];
+
+                    if (count($batch) >= $batchSize) {
+                        RabBudget::insert($batch);
+                        $imported += count($batch);
+                        $batch = [];
+                    }
                 }
 
-                $batch[] = [
-                    'project_id' => $projectId,
-                    'code_item' => trim((string)($row[$colMap['kode'] ?? -1] ?? '')),
-                    'description' => $uraian,
-                    'volume' => $volume ?: 0,
-                    'unit' => $satuan,
-                    'unit_price' => $harga ?: 0,
-                    'total_price' => $jumlah ?: 0,
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ];
-
-                if (count($batch) >= $batchSize) {
+                if ($batch !== []) {
                     RabBudget::insert($batch);
                     $imported += count($batch);
-                    $batch = [];
                 }
-            }
 
-            if (!empty($batch)) {
-                RabBudget::insert($batch);
-                $imported += count($batch);
-            }
+                // Remap references
+                $oldActiveRabs = RabBudget::where('project_id', $projectId)
+                    ->where('version', $currentMaxVersion)
+                    ->get();
 
-            DB::commit();
-        } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error('RAB Import Error: ' . $e->getMessage());
+                $newActiveRabs = RabBudget::where('project_id', $projectId)
+                    ->where('version', $newVersion)
+                    ->get();
+
+                $newRabsByKey = $newActiveRabs->keyBy(function ($item) {
+                    $codeClean = strtolower(trim((string)$item->code_item));
+                    $descClean = strtolower(trim($item->description));
+                    return $codeClean !== '' ? $codeClean : md5($descClean);
+                });
+
+                foreach ($oldActiveRabs as $oldItem) {
+                    $codeClean = strtolower(trim((string)$oldItem->code_item));
+                    $descClean = strtolower(trim($oldItem->description));
+                    $key = $codeClean !== '' ? $codeClean : md5($descClean);
+                    if ($newRabsByKey->has($key)) {
+                        $newItem = $newRabsByKey->get($key);
+                        InventoryStock::where('project_id', $projectId)
+                            ->where('rab_budget_id', $oldItem->id)
+                            ->update(['rab_budget_id' => $newItem->id]);
+
+                        PoItem::where('rab_budget_id', $oldItem->id)
+                            ->update(['rab_budget_id' => $newItem->id]);
+
+                        PurchaseRequisition::where('project_id', $projectId)
+                            ->where('rab_budget_id', $oldItem->id)
+                            ->update(['rab_budget_id' => $newItem->id]);
+                    }
+                }
+
+                // Archive/soft-delete
+                if ($currentMaxVersion > 0) {
+                    RabBudget::where('project_id', $projectId)
+                        ->where('version', '<=', $currentMaxVersion)
+                        ->update(['status' => 'ARCHIVED']);
+
+                    RabBudget::where('project_id', $projectId)
+                        ->where('version', '<=', $currentMaxVersion)
+                        ->delete();
+                }
+
+                // Create stock
+                $existingStockRabs = InventoryStock::where('project_id', $projectId)
+                    ->pluck('rab_budget_id')
+                    ->filter()
+                    ->toArray();
+
+                $stockBatch = [];
+                foreach ($newActiveRabs as $rab) {
+                    if (! in_array($rab->id, $existingStockRabs)) {
+                        $stockBatch[] = [
+                            'project_id' => $projectId,
+                            'rab_budget_id' => $rab->id,
+                            'item_name' => $rab->description,
+                            'unit' => $rab->unit ?: 'LS',
+                            'quantity' => 0,
+                            'min_quantity' => 0,
+                            'location' => '-',
+                            'created_at' => now(),
+                            'updated_at' => now(),
+                        ];
+
+                        if (count($stockBatch) >= $batchSize) {
+                            InventoryStock::insert($stockBatch);
+                            $stockBatch = [];
+                        }
+                    }
+                }
+
+                if ($stockBatch !== []) {
+                    InventoryStock::insert($stockBatch);
+                }
+
+                return [
+                    'imported' => $imported,
+                    'archived' => count($oldActiveRabs),
+                ];
+            });
+
+            return response()->json([
+                'success' => true,
+                'message' => "Berhasil mengimport {$result['imported']} item RAB.",
+                'data' => [
+                    'imported' => $result['imported'],
+                    'archived' => $result['archived'],
+                    'project_id' => $projectId,
+                ],
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('Sync RAB Import Error: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
                 'message' => 'Gagal import: ' . $e->getMessage(),
             ], 500);
         }
+    }
 
+    /**
+     * Async Auto-import (background job)
+     */
+    public function importAsync(Request $request)
+    {
+        $validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
+            'project_id' => 'required|exists:projects,id',
+            'file' => 'required|file|mimes:xlsx,xls,csv,txt|max:51200',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validasi input gagal.',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        $file = $request->file('file');
+        $projectId = $request->project_id;
+        $type = strtolower($file->getClientOriginalExtension());
+        if ($type === 'txt') $type = 'csv';
+
+        try {
+            $fileName = time() . '_' . str_replace(' ', '_', $file->getClientOriginalName());
+            $filePath = $file->storeAs('imports', $fileName);
+            $absolutePath = \Illuminate\Support\Facades\Storage::path($filePath);
+
+            $job = RabImportJob::create([
+                'project_id' => $projectId,
+                'file_path' => $absolutePath,
+                'file_name' => $file->getClientOriginalName(),
+                'file_type' => $type,
+                'status' => RabImportJob::STATUS_PENDING,
+            ]);
+
+            ValidateRabImportJob::dispatch($job->id);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'File diupload. Sedang memvalidasi data...',
+                'data' => $job,
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('Async RAB Import Error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal upload file: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Get background import status
+     */
+    public function getImportStatus($id)
+    {
+        $job = RabImportJob::findOrFail($id);
         return response()->json([
             'success' => true,
-            'message' => "Berhasil import {$imported} item RAB.",
-            'data' => [
-                'imported' => $imported,
-                'errors' => $errors,
-                'project_id' => $projectId,
-            ],
+            'data' => $job,
         ]);
     }
 
     /**
-     * Raw XML parse of xlsx - returns data from all sheets.
+     * Confirm and execute import in background
      */
-    private function parseXlsxRaw(string $path, ?int $maxRows): array
+    public function confirmImport($id)
     {
-        $sheets = [];
-        $errors = [];
-        $sharedStrings = [];
-
-        $zip = new \ZipArchive();
-        if ($zip->open($path) !== true) {
-            throw new \RuntimeException('Cannot open xlsx file');
+        $job = RabImportJob::findOrFail($id);
+        if ($job->status !== RabImportJob::STATUS_VALIDATED) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Hanya file yang telah tervalidasi yang dapat diimport.',
+            ], 400);
         }
 
-        // 1. Read shared strings
-        $ssXml = $zip->getFromName('xl/sharedStrings.xml');
-        if ($ssXml !== false) {
-            $xml = simplexml_load_string($ssXml);
-            if ($xml) {
-                foreach ($xml->si as $si) {
-                    $text = '';
-                    if (isset($si->t)) {
-                        $text = (string)$si->t;
-                    } else {
-                        foreach ($si->r as $r) {
-                            $text .= (string)$r->t;
-                        }
-                    }
-                    $sharedStrings[] = $text;
-                }
-            }
-        }
+        $job->update([
+            'status' => RabImportJob::STATUS_IMPORTING,
+            'processed_rows' => 0,
+        ]);
 
-        // 2. Discover all sheet files directly from zip (most robust)
-        $sheetFiles = [];
-        for ($i = 0; $i < $zip->numFiles; $i++) {
-            $name = $zip->getNameIndex($i);
-            if (preg_match('#^xl/worksheets/sheet(\d+)\.xml$#', $name, $m)) {
-                $sheetFiles[(int)$m[1]] = $name;
-            }
-        }
-        ksort($sheetFiles);
+        ExecuteRabImportJob::dispatch($job->id);
 
-        if (empty($sheetFiles)) {
-            $sheetFiles[1] = 'xl/worksheets/sheet1.xml';
-        }
-
-        // 3. Parse each sheet independently
-        foreach ($sheetFiles as $sheetNum => $sheetPath) {
-            $sheetName = "Sheet$sheetNum";
-            $sheetXml = $zip->getFromName($sheetPath);
-            if ($sheetXml === false) continue;
-
-            $xml = simplexml_load_string($sheetXml);
-            if (!$xml) continue;
-
-            $sheetRows = [];
-            foreach ($xml->sheetData->row as $rowNode) {
-                if ($maxRows !== null && count($sheetRows) >= $maxRows) break;
-
-                $rowData = [];
-                foreach ($rowNode->c as $cell) {
-                    $ref = (string)$cell['r'];
-                    $colIndex = $this->columnLetterToIndex(preg_replace('/\d+/', '', $ref));
-                    $type = (string)$cell['t'];
-                    $value = null;
-                    if ($type === 's') {
-                        $si = (int)$cell->v;
-                        $value = $sharedStrings[$si] ?? '';
-                    } elseif (isset($cell->v)) {
-                        $value = (string)$cell->v;
-                    } elseif (isset($cell->is->t)) {
-                        $value = (string)$cell->is->t;
-                    }
-                    while (count($rowData) <= $colIndex) {
-                        $rowData[] = '';
-                    }
-                    $rowData[$colIndex] = $value;
-                }
-                $sheetRows[] = $rowData;
-            }
-
-            $sheets[$sheetName] = $sheetRows;
-        }
-
-        $zip->close();
-        return ['sheets' => $sheets, 'errors' => $errors];
+        return response()->json([
+            'success' => true,
+            'message' => 'Eksekusi import dimulai di background...',
+            'data' => $job,
+        ]);
     }
 
-    /**
-     * Find the best sheet and header from multi-sheet xlsx data.
-     * Prefers sheets that have ALL required columns (uraian, volume, harga_satuan).
-     */
-    private function findBestSheet(array $sheets): ?array
-    {
-        $headerKeywords = ['uraian', 'deskripsi', 'pekerjaan', 'description', 'item', 'nama barang', 'uraian barang', 'harga satuan'];
-        $requiredCols = ['uraian', 'volume', 'harga_satuan'];
-        $best = null;
-        $bestScore = 0;
 
-        foreach ($sheets as $sheetName => $rows) {
-            $headerRowIndex = null;
-
-            // Find header row
-            foreach ($rows as $idx => $row) {
-                $lower = array_map(fn($v) => strtolower(trim((string)$v)), $row);
-                $matchCount = 0;
-                foreach ($lower as $cell) {
-                    foreach ($headerKeywords as $keyword) {
-                        if (str_contains($cell, $keyword)) { $matchCount++; break; }
-                    }
-                }
-                if ($matchCount >= 2) {
-                    $headerRowIndex = $idx;
-                    break;
-                }
-            }
-
-            // Fallback: try single keyword
-            if ($headerRowIndex === null) {
-                foreach ($rows as $idx => $row) {
-                    $lower = array_map(fn($v) => strtolower(trim((string)$v)), $row);
-                    foreach ($lower as $cell) {
-                        if (str_contains($cell, 'uraian') || str_contains($cell, 'harga satuan')) {
-                            $headerRowIndex = $idx;
-                            break 2;
-                        }
-                    }
-                }
-            }
-
-            if ($headerRowIndex === null) continue;
-
-            $colMap = $this->mapColumns($rows[$headerRowIndex]);
-            if (!isset($colMap['uraian'])) continue;
-
-            // Merge multi-row headers
-            if (!isset($colMap['volume']) || !isset($colMap['harga_satuan'])) {
-                for ($next = $headerRowIndex + 1; $next < min($headerRowIndex + 3, count($rows)); $next++) {
-                    $colMap2 = $this->mapColumns($rows[$next]);
-                    if (isset($colMap2['volume']) && !isset($colMap['volume'])) $colMap['volume'] = $colMap2['volume'];
-                    if (isset($colMap2['harga_satuan']) && !isset($colMap['harga_satuan'])) $colMap['harga_satuan'] = $colMap2['harga_satuan'];
-                    if (isset($colMap2['jumlah']) && !isset($colMap['jumlah'])) $colMap['jumlah'] = $colMap2['jumlah'];
-                    if (isset($colMap['volume']) && isset($colMap['harga_satuan'])) break;
-                }
-            }
-
-            $requiredCount = 0;
-            foreach ($requiredCols as $col) {
-                if (isset($colMap[$col])) $requiredCount++;
-            }
-
-            if ($requiredCount === 0) continue;
-
-            $dataRows = 0;
-            $numericRows = 0;  // rows with numeric volume+harga_satuan
-            foreach ($rows as $idx => $row) {
-                if ($idx <= $headerRowIndex) continue;
-                $uraian = trim((string)($row[$colMap['uraian']] ?? ''));
-                if ($uraian !== '' && strtolower($uraian) !== 'jumlah' && strtolower($uraian) !== 'total') {
-                    $dataRows++;
-                    // Check if volume and harga_satuan have numeric values
-                    $vol = $this->parseNumber($row[$colMap['volume'] ?? -1] ?? null);
-                    $harga = $this->parseNumber($row[$colMap['harga_satuan'] ?? -1] ?? null);
-                    if ($vol !== null && $harga !== null) {
-                        $numericRows++;
-                    }
-                }
-            }
-
-            if ($dataRows === 0) continue;
-
-            // Quality score: required columns + numeric data quality
-            // Prefer sheets with more numeric data (real RAB items vs reference sheets)
-            $qualityScore = $requiredCount * 1000 + $numericRows;
-
-            if ($qualityScore > $bestScore ||
-                ($qualityScore === $bestScore && ($best === null || $dataRows > $best['dataRows']))) {
-                $best = [
-                    'sheetName' => $sheetName,
-                    'rows' => $rows,
-                    'headerIndex' => $headerRowIndex,
-                    'colMap' => $colMap,
-                    'dataRows' => $dataRows,
-                    'requiredCount' => $requiredCount,
-                    'numericRows' => $numericRows,
-                ];
-                $bestScore = $qualityScore;
-            }
-        }
-
-        return $best;
-    }
-
-    /**
-     * Convert column letter to 0-based index
-     */
-    private function columnLetterToIndex(string $letter): int
-    {
-        $letter = strtoupper($letter);
-        $index = 0;
-        $len = strlen($letter);
-        for ($i = 0; $i < $len; $i++) {
-            $index = $index * 26 + (ord($letter[$i]) - ord('A') + 1);
-        }
-        return $index - 1;
-    }
-
-    /**
-     * Map header row to known column names.
-     * Uses longest-match-first to avoid false positives.
-     * Strips parenthetical suffixes like "(Rp)".
-     */
-    private function mapColumns(array $headerRow): array
-    {
-        $map = [];
-
-        $knownCols = [
-            'no' => ['nomor urut', 'no urut', 'nomor', 'no.'],
-            'kode' => ['kode pekerjaan', 'kode rekening', 'kode barang', 'kode item', 'kode akun', 'kode'],
-            'uraian' => ['uraian pekerjaan', 'uraian barang', 'nama pekerjaan', 'jenis barang/jasa', 'nama barang', 'deskripsi', 'description', 'rincian', 'keterangan', 'pekerjaan', 'uraian'],
-            'volume' => ['volume', 'vol', 'qty', 'quantity', 'kuantitas'],
-            'satuan' => ['satuan unit', 'satuan', 'uom'],
-            'harga_satuan' => ['harga satuan', 'harga_satuan', 'unit price', 'harga per satuan', 'hs', 'harga'],
-            'jumlah' => ['jumlah harga satuan', 'total harga', 'total biaya', 'subtotal', 'sub total', 'amount', 'nilai', 'jumlah', 'total'],
-            'kategori' => ['kode kategori', 'kelompok', 'category', 'kategori', 'group', 'jenis'],
-        ];
-
-        foreach ($headerRow as $colIdx => $header) {
-            if ($header === null) continue;
-            $h = strtolower(trim((string)$header));
-            $h = trim(preg_replace('/\s*\(.*?\)\s*/', '', $h));
-            if ($h === '') continue;
-
-            $bestLen = 0;
-            $bestKey = null;
-
-            foreach ($knownCols as $key => $aliases) {
-                foreach ($aliases as $alias) {
-                    $a = strtolower($alias);
-                    // Exact match = highest priority
-                    if ($h === $a) {
-                        $bestLen = strlen($a) * 100;
-                        $bestKey = $key;
-                        break;
-                    }
-                    // Starts with alias
-                    if (str_starts_with($h, $a) && strlen($a) > $bestLen) {
-                        $bestLen = strlen($a);
-                        $bestKey = $key;
-                    }
-                    // Alias is a whole word in the cell
-                    elseif (preg_match('/\b' . preg_quote($a, '/') . '\b/', $h) && strlen($a) > $bestLen) {
-                        $bestLen = strlen($a);
-                        $bestKey = $key;
-                    }
-                }
-            }
-
-            if ($bestKey !== null) {
-                $map[$bestKey] = $colIdx;
-            }
-        }
-
-        return $map;
-    }
-
-    /**
-     * Parse number from various formats
-     */
-    private function parseNumber($value): ?float
-    {
-        if ($value === null || $value === '') return null;
-        if (is_numeric($value)) return (float)$value;
-
-        $s = trim((string)$value);
-        $s = str_replace(['Rp', 'rp', 'RP', 'Rp.', 'Rp. ', ' '], '', $s);
-
-        // Indonesian format: 1.000.000,50
-        if (preg_match('/^\d{1,3}(\.\d{3})+(,\d+)?$/', $s)) {
-            $s = str_replace('.', '', $s);
-            $s = str_replace(',', '.', $s);
-            return is_numeric($s) ? (float)$s : null;
-        }
-
-        // English format: 1,000,000.50
-        if (preg_match('/^\d{1,3}(,\d{3})+(\.\d+)?$/', $s)) {
-            $s = str_replace(',', '', $s);
-            return is_numeric($s) ? (float)$s : null;
-        }
-
-        $s = str_replace(',', '.', $s);
-        return is_numeric($s) ? (float)$s : null;
-    }
 
     public function index(Request $request)
     {

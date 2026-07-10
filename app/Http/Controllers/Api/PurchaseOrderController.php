@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\ApprovalLog;
 use App\Models\PurchaseOrder;
 use App\Models\PoItem;
+use App\Models\RabBudget;
+use App\Support\WorkflowState;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -31,10 +33,33 @@ class PurchaseOrderController extends Controller
             'items.*.unit_price' => 'required|numeric|min:0',
         ]);
 
-        try {
-            DB::beginTransaction();
+        $budgetIds = collect($validated['items'])->pluck('rab_budget_id')->unique();
+        $matchingBudgetCount = RabBudget::query()
+            ->where('project_id', $validated['project_id'])
+            ->whereIn('id', $budgetIds)
+            ->count();
 
-            $po = PurchaseOrder::create([
+        if ($matchingBudgetCount !== $budgetIds->count()) {
+            return response()->json([
+                'message' => 'Setiap item PO harus berasal dari RAB pada proyek yang sama.',
+            ], 422);
+        }
+
+        $approvedBudgetCount = RabBudget::query()
+            ->where('project_id', $validated['project_id'])
+            ->whereIn('id', $budgetIds)
+            ->where('status', RabBudget::STATUS_APPROVED)
+            ->count();
+
+        if ($approvedBudgetCount !== $budgetIds->count()) {
+            return response()->json([
+                'message' => 'PO hanya dapat dibuat dari item RAB yang sudah disetujui.',
+            ], 422);
+        }
+
+        try {
+            $po = DB::transaction(function () use ($validated, $request) {
+                $po = PurchaseOrder::create([
                 'project_id' => $validated['project_id'],
                 'po_number' => $validated['po_number'],
                 'date' => $validated['date'],
@@ -42,38 +67,38 @@ class PurchaseOrderController extends Controller
                 'payment_terms' => $validated['payment_terms'],
                 'status' => 'DRAFT',
                 'created_by' => $request->user()->id ?? 1,
-            ]);
-
-            $subtotal = 0;
-            foreach ($validated['items'] as $item) {
-                $totalPrice = $item['qty'] * $item['unit_price'];
-                $subtotal += $totalPrice;
-
-                PoItem::create([
-                    'purchase_order_id' => $po->id,
-                    'rab_budget_id' => $item['rab_budget_id'],
-                    'item_name' => $item['item_name'],
-                    'qty' => $item['qty'],
-                    'unit_price' => $item['unit_price'],
-                    'total_price' => $totalPrice,
                 ]);
-            }
 
-            $tax = $subtotal * 0.11; // Assuming 11% PPN
-            $po->update([
-                'subtotal' => $subtotal,
-                'tax_amount' => $tax,
-                'total_amount' => $subtotal + $tax
-            ]);
+                $subtotal = 0;
+                foreach ($validated['items'] as $item) {
+                    $totalPrice = $item['qty'] * $item['unit_price'];
+                    $subtotal += $totalPrice;
 
-            DB::commit();
+                    PoItem::create([
+                        'purchase_order_id' => $po->id,
+                        'rab_budget_id' => $item['rab_budget_id'],
+                        'item_name' => $item['item_name'],
+                        'qty' => $item['qty'],
+                        'unit_price' => $item['unit_price'],
+                        'total_price' => $totalPrice,
+                    ]);
+                }
+
+                $tax = $subtotal * 0.11;
+                $po->update([
+                    'subtotal' => $subtotal,
+                    'tax_amount' => $tax,
+                    'total_amount' => $subtotal + $tax,
+                ]);
+
+                return $po;
+            });
 
             return response()->json([
                 'message' => 'Draft Purchase Order (PO) berhasil dibuat.',
                 'data' => $po->load('items')
             ], 201);
-        } catch (\Exception $e) {
-            DB::rollBack();
+        } catch (\Throwable $e) {
             return response()->json(['message' => 'Gagal membuat PO.', 'error' => $e->getMessage()], 500);
         }
     }
@@ -81,6 +106,11 @@ class PurchaseOrderController extends Controller
     public function submit(Request $request, $id)
     {
         $po = PurchaseOrder::findOrFail($id);
+        WorkflowState::require(
+            $po->status,
+            ['DRAFT'],
+            'Hanya PO berstatus DRAFT yang dapat dikirim untuk approval.'
+        );
         $po->update(['status' => 'PENDING_APPROVAL']);
         $this->log($request, $po, 'SUBMIT');
 
@@ -90,6 +120,11 @@ class PurchaseOrderController extends Controller
     public function approve(Request $request, $id)
     {
         $po = PurchaseOrder::findOrFail($id);
+        WorkflowState::require(
+            $po->status,
+            ['PENDING_APPROVAL'],
+            'PO harus berstatus PENDING_APPROVAL sebelum disetujui.'
+        );
         $po->update([
             'status' => 'APPROVED',
             'approved_by' => $request->user()->id ?? 1,
@@ -102,6 +137,11 @@ class PurchaseOrderController extends Controller
     public function reject(Request $request, $id)
     {
         $po = PurchaseOrder::findOrFail($id);
+        WorkflowState::require(
+            $po->status,
+            ['PENDING_APPROVAL'],
+            'PO harus berstatus PENDING_APPROVAL sebelum ditolak.'
+        );
         $po->update(['status' => 'REJECTED']);
         $this->log($request, $po, 'REJECT', $request->input('notes'));
 

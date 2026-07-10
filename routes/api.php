@@ -24,6 +24,8 @@ Route::get('/pos/{poId}/goods-receipts', [GoodsReceiptController::class, 'getByP
 Route::post('/goods-receipts', [GoodsReceiptController::class, 'store']);
 Route::get('/opnames', [OpnameController::class, 'index']);
 Route::post('/opnames', [OpnameController::class, 'store']);
+Route::put('/opnames/{id}/approve', [OpnameController::class, 'approve']);
+Route::put('/opnames/{id}/reject', [OpnameController::class, 'reject']);
 
 // Workflow C: Invoices
 Route::get('/invoices', [InvoiceController::class, 'index']);
@@ -70,6 +72,7 @@ Route::put('/spks/{id}/reject', [SpkController::class, 'reject']);
 Route::get('/fund-requests', [FundRequestController::class, 'index']);
 Route::post('/fund-requests', [FundRequestController::class, 'store']);
 Route::put('/fund-requests/{id}/approve', [FundRequestController::class, 'approve']);
+Route::put('/fund-requests/{id}/reject', [FundRequestController::class, 'reject']);
 Route::post('/fund-requests/{id}/payments', [FundRequestController::class, 'pay']);
 Route::put('/fund-requests/{id}/lpj', [FundRequestController::class, 'submitLpj']);
 Route::put('/fund-requests/{id}/lpj-verify', [FundRequestController::class, 'verifyLpj']);
@@ -77,6 +80,7 @@ Route::put('/fund-requests/{id}/lpj-verify', [FundRequestController::class, 'ver
 // Master Data
 Route::get('/projects', [ProjectController::class, 'index']);
 Route::get('/projects/{id}', [ProjectController::class, 'show']);
+Route::post('/projects', [ProjectController::class, 'store']);
 
 // Inventory
 Route::get('/inventory', [InventoryController::class, 'index']);

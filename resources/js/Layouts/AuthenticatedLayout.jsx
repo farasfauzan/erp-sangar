@@ -17,7 +17,9 @@ export default function Authenticated({ header, children }) {
             case 'ADMIN':
                 return [
                     { name: 'Dashboard', route: 'dashboard', icon: '📊' },
+                    { name: 'Kontrol RAB', route: 'rab-control', icon: '📋' },
                     { name: 'Purchase Orders', route: 'po', icon: '🛒' },
+                    { name: 'Kontrak SPK', route: 'spk', icon: '📜' },
                     { name: 'Penerimaan Barang', route: 'goods-receipts', icon: '📦' },
                     { name: 'Input Opname', route: 'opname', icon: '🏗️' },
                     { name: 'Input Tagihan', route: 'invoicing', icon: '📥' },
@@ -36,6 +38,7 @@ export default function Authenticated({ header, children }) {
             case 'ENGINEER':
                 return [
                     { name: 'Dashboard Verifikasi', route: 'dashboard', icon: '📋' },
+                    { name: 'Kontrol RAB', route: 'rab-control', icon: '📋' },
                     { name: 'Verifikasi Kebutuhan', route: 'dashboard', icon: '🔍' },
                     { name: 'Verifikasi Tagihan', route: 'approval', icon: '✅' },
                 ];
@@ -43,7 +46,7 @@ export default function Authenticated({ header, children }) {
                 return [
                     { name: 'Dashboard Pengadaan', route: 'dashboard', icon: '📊' },
                     { name: 'Purchase Orders', route: 'po', icon: '🛒' },
-                    { name: 'Kontrak SPK', route: 'dashboard', icon: '📜' },
+                    { name: 'Kontrak SPK', route: 'spk', icon: '📜' },
                     { name: 'Input Tagihan', route: 'invoicing', icon: '📥' },
                 ];
             case 'VERIFIKATOR_KEU':
@@ -55,6 +58,7 @@ export default function Authenticated({ header, children }) {
             case 'MGR_KOMERSIAL':
                 return [
                     { name: 'Executive Dashboard', route: 'dashboard', icon: '📈' },
+                    { name: 'Kontrol RAB', route: 'rab-control', icon: '📋' },
                     { name: 'Approval PO & SPK', route: 'approval', icon: '✍️' },
                     { name: 'Approval Cashflow', route: 'approval', icon: '✍️' },
                 ];

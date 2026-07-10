@@ -1,12 +1,12 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, Link } from '@inertiajs/react';
+import { Head } from '@inertiajs/react';
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 
 export default function InvoiceAdmin() {
     const [invoices, setInvoices] = useState([]);
     const [pos, setPos] = useState([]);
-    const [spks, setSpks] = useState([]);
+    const [opnames, setOpnames] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showForm, setShowForm] = useState(false);
     const [message, setMessage] = useState('');
@@ -17,18 +17,18 @@ export default function InvoiceAdmin() {
         invoice_number: 'INV-' + Math.floor(Math.random() * 100000),
         invoice_date: new Date().toISOString().split('T')[0],
         due_date: '',
+        opname_id: '',
     });
 
     useEffect(() => {
         Promise.all([
             axios.get('/api/invoices'),
             axios.get('/api/pos'),
-            axios.get('/api/spks'),
-        ]).then(([invRes, poRes, spkRes]) => {
+            axios.get('/api/opnames'),
+        ]).then(([invRes, poRes, opnameRes]) => {
             setInvoices(invRes.data);
-            // Hanya PO yang statusnya RECEIVED (atau disederhanakan tampilkan semua untuk testing)
-            setPos(poRes.data); 
-            setSpks(spkRes.data);
+            setPos(poRes.data);
+            setOpnames(opnameRes.data);
             setLoading(false);
         });
     }, []);
@@ -46,11 +46,15 @@ export default function InvoiceAdmin() {
                 invoice_number: 'INV-' + Math.floor(Math.random() * 100000),
                 invoiceable_id: '',
                 due_date: '',
+                opname_id: '',
             });
         } catch (err) {
             setMessage(err.response?.data?.message || 'Gagal membuat invoice.');
         }
     };
+
+    const receivablePos = pos.filter((po) => po.status === 'RECEIVED' && !invoices.some((invoice) => invoice.invoiceable_type?.includes('PurchaseOrder') && invoice.invoiceable_id === po.id));
+    const invoiceableOpnames = opnames.filter((opname) => opname.status === 'APPROVED' && opname.spk?.status === 'APPROVED' && !invoices.some((invoice) => invoice.opname_id === opname.id));
 
     return (
         <AuthenticatedLayout header={<h2 className="text-xl font-semibold leading-tight text-gray-800">Drafting Tagihan (Invoicing)</h2>}>
@@ -83,7 +87,7 @@ export default function InvoiceAdmin() {
                                             <label className="block text-sm font-medium text-gray-700">Tipe Referensi</label>
                                             <select
                                                 value={form.invoiceable_type}
-                                                onChange={e => setForm({...form, invoiceable_type: e.target.value, invoiceable_id: ''})}
+                                                onChange={e => setForm({...form, invoiceable_type: e.target.value, invoiceable_id: '', opname_id: ''})}
                                                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-sm"
                                             >
                                                 <option value="App\Models\PurchaseOrder">Purchase Order (Material)</option>
@@ -91,20 +95,29 @@ export default function InvoiceAdmin() {
                                             </select>
                                         </div>
                                         <div>
-                                            <label className="block text-sm font-medium text-gray-700">Pilih Dokumen Acuan</label>
+                                            <label className="block text-sm font-medium text-gray-700">{form.invoiceable_type === 'App\\Models\\PurchaseOrder' ? 'Pilih PO yang sudah diterima' : 'Pilih Opname yang sudah disetujui'}</label>
                                             <select
                                                 required
-                                                value={form.invoiceable_id}
-                                                onChange={e => setForm({...form, invoiceable_id: e.target.value})}
+                                                value={form.invoiceable_type === 'App\\Models\\PurchaseOrder' ? form.invoiceable_id : form.opname_id}
+                                                onChange={e => {
+                                                    if (form.invoiceable_type === 'App\\Models\\PurchaseOrder') {
+                                                        setForm({...form, invoiceable_id: e.target.value});
+                                                        return;
+                                                    }
+                                                    const opname = invoiceableOpnames.find((item) => item.id === Number(e.target.value));
+                                                    setForm({...form, opname_id: e.target.value, invoiceable_id: opname?.spk_id || ''});
+                                                }}
                                                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-sm"
                                             >
                                                 <option value="">-- Pilih --</option>
                                                 {form.invoiceable_type === 'App\\Models\\PurchaseOrder' ? 
-                                                    pos.map(p => <option key={p.id} value={p.id}>{p.po_number} - Rp {Number(p.total_amount).toLocaleString('id-ID')}</option>)
+                                                    receivablePos.map(p => <option key={p.id} value={p.id}>{p.po_number} - Rp {Number(p.total_amount).toLocaleString('id-ID')}</option>)
                                                     :
-                                                    spks.map(s => <option key={s.id} value={s.id}>{s.spk_number} - Rp {Number(s.total_amount).toLocaleString('id-ID')}</option>)
+                                                    invoiceableOpnames.map(opname => <option key={opname.id} value={opname.id}>{opname.opname_number} — {opname.spk?.spk_number || 'SPK'} - Rp {Number(opname.amount).toLocaleString('id-ID')}</option>)
                                                 }
                                             </select>
+                                            {form.invoiceable_type === 'App\\Models\\PurchaseOrder' && !receivablePos.length && <p className="mt-1 text-xs text-amber-700">Tidak ada PO yang sudah diterima dan belum ditagihkan.</p>}
+                                            {form.invoiceable_type === 'App\\Models\\Spk' && !invoiceableOpnames.length && <p className="mt-1 text-xs text-amber-700">Tidak ada opname SPK yang sudah disetujui dan belum ditagihkan.</p>}
                                         </div>
                                         <div>
                                             <label className="block text-sm font-medium text-gray-700">No. Invoice (Faktur)</label>

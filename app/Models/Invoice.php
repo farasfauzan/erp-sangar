@@ -8,7 +8,7 @@ class Invoice extends Model
 {
     protected $fillable = [
         'invoiceable_type', 'invoiceable_id', 'invoice_number', 
-        'invoice_date', 'due_date', 'amount', 'status'
+        'opname_id', 'invoice_date', 'due_date', 'amount', 'status'
     ];
 
     public function invoiceable()
@@ -24,5 +24,10 @@ class Invoice extends Model
     public function transactions()
     {
         return $this->hasMany(Transaction::class);
+    }
+
+    public function opname()
+    {
+        return $this->belongsTo(Opname::class);
     }
 }

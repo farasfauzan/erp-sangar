@@ -17,4 +17,21 @@ class ProjectController extends Controller
     {
         return response()->json(Project::with('rabBudgets')->findOrFail($id));
     }
+
+    public function store(Request $request)
+    {
+        $validated = $request->validate([
+            'project_name' => 'required|string|max:255',
+            'location' => 'required|string|max:255',
+            'start_date' => 'required|date',
+        ]);
+
+        $project = Project::create($validated);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Proyek baru berhasil dibuat.',
+            'data' => $project
+        ], 201);
+    }
 }

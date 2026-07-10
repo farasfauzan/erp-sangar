@@ -15,6 +15,11 @@ class PoItem extends Model
 
     public function rabBudget()
     {
-        return $this->belongsTo(RabBudget::class);
+        return $this->belongsTo(RabBudget::class)->withTrashed();
+    }
+
+    public function goodsReceiptItems()
+    {
+        return $this->hasMany(GoodsReceiptItem::class);
     }
 }

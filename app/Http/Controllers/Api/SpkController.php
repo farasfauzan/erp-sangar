@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\ApprovalLog;
 use App\Models\Spk;
+use App\Support\WorkflowState;
 use Illuminate\Http\Request;
 
 class SpkController extends Controller
@@ -47,6 +48,11 @@ class SpkController extends Controller
     public function submit(Request $request, $id)
     {
         $spk = Spk::findOrFail($id);
+        WorkflowState::require(
+            $spk->status,
+            ['DRAFT'],
+            'Hanya SPK berstatus DRAFT yang dapat dikirim untuk approval.'
+        );
         $spk->update(['status' => 'PENDING_APPROVAL']);
         $this->log($request, $spk, 'SUBMIT');
 
@@ -56,6 +62,11 @@ class SpkController extends Controller
     public function approve(Request $request, $id)
     {
         $spk = Spk::findOrFail($id);
+        WorkflowState::require(
+            $spk->status,
+            ['PENDING_APPROVAL'],
+            'SPK harus berstatus PENDING_APPROVAL sebelum disetujui.'
+        );
         $spk->update([
             'status' => 'APPROVED',
             'approved_by' => $request->user()->id ?? 1,
@@ -68,6 +79,11 @@ class SpkController extends Controller
     public function reject(Request $request, $id)
     {
         $spk = Spk::findOrFail($id);
+        WorkflowState::require(
+            $spk->status,
+            ['PENDING_APPROVAL'],
+            'SPK harus berstatus PENDING_APPROVAL sebelum ditolak.'
+        );
         $spk->update(['status' => 'REJECTED']);
         $this->log($request, $spk, 'REJECT', $request->input('notes'));
 

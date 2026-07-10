@@ -16,9 +16,13 @@ class GoodsReceipt extends Model
         return $this->belongsTo(PurchaseOrder::class);
     }
 
+    public function items()
+    {
+        return $this->hasMany(GoodsReceiptItem::class);
+    }
+
     public function project()
     {
         return $this->purchaseOrder?->project();
     }
 }
-
