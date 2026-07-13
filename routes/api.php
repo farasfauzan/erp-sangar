@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\SupplierController;
 use App\Http\Controllers\Api\GeneralLedgerController;
 use App\Http\Controllers\Api\ChartOfAccountController;
+use App\Http\Controllers\Api\TaxController;
 
 Route::middleware(['auth:web', 'verified'])->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\ValidateCsrfToken::class])->group(function () {
     Route::get('/user', function (Request $request) {
@@ -160,9 +161,13 @@ Route::middleware(['auth:web', 'verified'])->withoutMiddleware([\Illuminate\Foun
     // =====================================================
     Route::middleware('role:ADMIN,LAPANGAN,ENGINEER,PURCHASING_LEGAL,VERIFIKATOR_KEU,MGR_KOMERSIAL,KEU_KANTOR,PAJAK,ACCOUNTING')->group(function () {
         Route::get('/inventory', [InventoryController::class, 'index']);
+        Route::get('/inventory/{stock}/movements', [InventoryController::class, 'movements']);
     });
     Route::middleware('role:ADMIN,LAPANGAN,PURCHASING_LEGAL')->group(function () {
         Route::post('/inventory/receive', [InventoryController::class, 'receive']);
+    });
+    Route::middleware('role:ADMIN,LAPANGAN')->group(function () {
+        Route::post('/inventory/{stock}/adjust', [InventoryController::class, 'adjust']);
     });
 
     // =====================================================
@@ -217,6 +222,21 @@ Route::middleware(['auth:web', 'verified'])->withoutMiddleware([\Illuminate\Foun
         Route::get('/dashboard/executive', [DashboardReportController::class, 'executive']);
         Route::get('/dashboard/financial', [DashboardReportController::class, 'financial']);
         Route::get('/dashboard/projects', [DashboardReportController::class, 'projects']);
+    });
+
+    // =====================================================
+    // Taxes — all authenticated can view/calculate, ADMIN/PAJAK CRUD
+    // =====================================================
+    Route::middleware('role:ADMIN,LAPANGAN,ENGINEER,PURCHASING_LEGAL,VERIFIKATOR_KEU,MGR_KOMERSIAL,KEU_KANTOR,PAJAK,ACCOUNTING')->group(function () {
+        Route::get('/taxes', [TaxController::class, 'index']);
+        Route::get('/taxes/{id}', [TaxController::class, 'show']);
+        Route::post('/taxes/calculate', [TaxController::class, 'calculate']);
+    });
+    Route::middleware('role:ADMIN,PAJAK')->group(function () {
+        Route::post('/taxes', [TaxController::class, 'store']);
+        Route::put('/taxes/{id}', [TaxController::class, 'update']);
+        Route::patch('/taxes/{id}', [TaxController::class, 'update']);
+        Route::delete('/taxes/{id}', [TaxController::class, 'destroy']);
     });
 
     // =====================================================

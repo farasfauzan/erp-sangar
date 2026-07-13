@@ -4,7 +4,10 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\InventoryStock;
+use App\Models\StockMovement;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 class InventoryController extends Controller
 {
@@ -63,6 +66,53 @@ class InventoryController extends Controller
             'success' => true,
             'data' => $stock,
             'message' => "Stok {$request->item_name} bertambah {$request->quantity} {$stock->unit}",
+        ]);
+    }
+
+    /**
+     * List stock movements for an inventory item.
+     */
+    public function movements(Request $request, InventoryStock $stock)
+    {
+        $movements = StockMovement::where('inventory_stock_id', $stock->id)
+            ->with('creator')
+            ->orderByDesc('created_at')
+            ->paginate($request->get('per_page', 50));
+
+        return response()->json([
+            'success' => true,
+            'data' => $movements,
+        ]);
+    }
+
+    /**
+     * Manual stock adjustment with reason.
+     */
+    public function adjust(Request $request, InventoryStock $stock)
+    {
+        $request->validate([
+            'quantity' => 'required|numeric',
+            'notes'    => 'required|string',
+        ]);
+
+        DB::transaction(function () use ($request, $stock) {
+            StockMovement::create([
+                'inventory_stock_id' => $stock->id,
+                'type'               => 'adjustment',
+                'quantity'           => $request->quantity,
+                'notes'              => $request->notes,
+                'created_by'         => Auth::id(),
+            ]);
+
+            $stock->increment('quantity', $request->quantity);
+        });
+
+        $stock->refresh();
+
+        return response()->json([
+            'success' => true,
+            'data'    => $stock,
+            'message' => "Stok {$stock->item_name} disesuaikan sebanyak {$request->quantity} {$stock->unit}",
         ]);
     }
 }

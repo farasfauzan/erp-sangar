@@ -13,7 +13,13 @@ return new class extends Migration
     {
         Schema::create('taxes', function (Blueprint $table) {
             $table->id();
+            $table->string('name');
+            $table->decimal('rate', 5, 4); // e.g. 0.1100 for 11%
+            $table->enum('type', ['ppn', 'pph', 'other'])->default('ppn');
+            $table->boolean('is_active')->default(true);
+            $table->text('description')->nullable();
             $table->timestamps();
+            $table->softDeletes();
         });
     }
 
