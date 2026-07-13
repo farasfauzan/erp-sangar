@@ -76,10 +76,15 @@ Route::middleware(['auth:web', 'verified'])->withoutMiddleware([\Illuminate\Foun
     // =====================================================
     Route::middleware('role:ADMIN,LAPANGAN,ENGINEER,PURCHASING_LEGAL,VERIFIKATOR_KEU,MGR_KOMERSIAL,KEU_KANTOR,PAJAK,ACCOUNTING')->group(function () {
         Route::get('/pos', [PurchaseOrderController::class, 'index']);
+        Route::get('/pos/{id}', [PurchaseOrderController::class, 'show']);
+        Route::get('/purchase-orders/{po}', [PurchaseOrderController::class, 'show']);
+        Route::get('/purchase-orders/{po}/attachments', [PurchaseOrderController::class, 'getAttachments']);
     });
     Route::middleware('role:ADMIN,PURCHASING_LEGAL')->group(function () {
         Route::post('/pos', [PurchaseOrderController::class, 'store']);
         Route::put('/pos/{id}/submit', [PurchaseOrderController::class, 'submit']);
+        Route::post('/purchase-orders/{po}/attachments', [PurchaseOrderController::class, 'uploadAttachment']);
+        Route::delete('/attachments/{attachment}', [PurchaseOrderController::class, 'deleteAttachment']);
     });
     Route::middleware('role:ADMIN,MGR_KOMERSIAL')->group(function () {
         Route::put('/pos/{id}/approve', [PurchaseOrderController::class, 'approve']);

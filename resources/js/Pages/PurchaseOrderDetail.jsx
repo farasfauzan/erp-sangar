@@ -1,6 +1,6 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head } from '@inertiajs/react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { useToast } from '@/Components/ui/Toast';
 import Card from '@/Components/ui/Card';
@@ -38,7 +38,6 @@ function StatusTimeline({ currentStatus }) {
 
                 return (
                     <div key={step} className="flex flex-col items-center flex-1 relative">
-                        {/* Connector line */}
                         {index < steps.length - 1 && (
                             <div
                                 className={`absolute top-4 left-1/2 w-full h-0.5 ${
@@ -50,7 +49,6 @@ function StatusTimeline({ currentStatus }) {
                             />
                         )}
 
-                        {/* Circle */}
                         <div
                             className={`relative z-10 w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-colors ${
                                 isCurrent
@@ -79,7 +77,6 @@ function StatusTimeline({ currentStatus }) {
                             )}
                         </div>
 
-                        {/* Label */}
                         <span
                             className={`mt-2 text-xs font-medium text-center whitespace-nowrap ${
                                 isCurrent
@@ -98,6 +95,257 @@ function StatusTimeline({ currentStatus }) {
     );
 }
 
+function formatFileSize(bytes) {
+    if (!bytes) return '0 B';
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(1024));
+    return `${(bytes / Math.pow(1024, i)).toFixed(i > 0 ? 1 : 0)} ${sizes[i]}`;
+}
+
+function getFileIcon(fileType) {
+    if (!fileType) return '📄';
+    if (fileType.startsWith('image/')) return '🖼️';
+    if (fileType === 'application/pdf') return '📕';
+    if (fileType.includes('spreadsheet') || fileType.includes('excel') || fileType.endsWith('xlsx')) return '📊';
+    return '📄';
+}
+
+function isImageFile(fileType) {
+    return fileType && fileType.startsWith('image/');
+}
+
+function AttachmentsSection({ poId, canUpload }) {
+    const [attachments, setAttachments] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [uploading, setUploading] = useState(false);
+    const [dragOver, setDragOver] = useState(false);
+    const [deleteTarget, setDeleteTarget] = useState(null);
+    const [previewImage, setPreviewImage] = useState(null);
+    const fileInputRef = useRef(null);
+    const toast = useToast();
+
+    useEffect(() => {
+        fetchAttachments();
+    }, [poId]);
+
+    const fetchAttachments = async () => {
+        setLoading(true);
+        try {
+            const res = await axios.get(`/api/purchase-orders/${poId}/attachments`);
+            setAttachments(res.data);
+        } catch (err) {
+            toast.error('Gagal memuat daftar lampiran.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleUpload = async (files) => {
+        if (!files || files.length === 0) return;
+        setUploading(true);
+        try {
+            for (const file of files) {
+                const formData = new FormData();
+                formData.append('file', file);
+                await axios.post(`/api/purchase-orders/${poId}/attachments`, formData, {
+                    headers: { 'Content-Type': 'multipart/form-data' },
+                });
+            }
+            toast.success('File berhasil diunggah.');
+            await fetchAttachments();
+        } catch (err) {
+            toast.error(err.response?.data?.message || 'Gagal mengunggah file.');
+        } finally {
+            setUploading(false);
+        }
+    };
+
+    const handleDelete = async (attachment) => {
+        try {
+            await axios.delete(`/api/attachments/${attachment.id}`);
+            toast.success('File berhasil dihapus.');
+            setAttachments(prev => prev.filter(a => a.id !== attachment.id));
+        } catch (err) {
+            toast.error('Gagal menghapus file.');
+        } finally {
+            setDeleteTarget(null);
+        }
+    };
+
+    const handleDragOver = (e) => {
+        e.preventDefault();
+        setDragOver(true);
+    };
+
+    const handleDragLeave = () => {
+        setDragOver(false);
+    };
+
+    const handleDrop = (e) => {
+        e.preventDefault();
+        setDragOver(false);
+        const files = Array.from(e.dataTransfer.files);
+        handleUpload(files);
+    };
+
+    return (
+        <Card title="Lampiran">
+            {/* Upload Area */}
+            {canUpload && (
+                <div
+                    className={`mb-4 border-2 border-dashed rounded-lg p-6 text-center transition-colors cursor-pointer ${
+                        dragOver
+                            ? 'border-indigo-500 bg-indigo-50'
+                            : 'border-gray-300 hover:border-indigo-400 hover:bg-gray-50'
+                    }`}
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                    onClick={() => fileInputRef.current?.click()}
+                >
+                    <input
+                        ref={fileInputRef}
+                        type="file"
+                        multiple
+                        accept=".jpg,.jpeg,.png,.pdf,.xlsx"
+                        className="hidden"
+                        onChange={(e) => handleUpload(Array.from(e.target.files))}
+                    />
+                    {uploading ? (
+                        <div className="flex items-center justify-center gap-2 text-indigo-600">
+                            <LoadingSpinner message="" />
+                            <span className="text-sm">Mengunggah...</span>
+                        </div>
+                    ) : (
+                        <>
+                            <svg className="w-8 h-8 mx-auto text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                            </svg>
+                            <p className="text-sm text-gray-600">
+                                <span className="font-medium text-indigo-600">Klik untuk upload</span> atau drag & drop
+                            </p>
+                            <p className="text-xs text-gray-400 mt-1">JPG, PNG, PDF, XLSX (max 10MB)</p>
+                        </>
+                    )}
+                </div>
+            )}
+
+            {/* Attachments List */}
+            {loading ? (
+                <div className="text-center py-4">
+                    <LoadingSpinner message="Memuat lampiran..." />
+                </div>
+            ) : attachments.length === 0 ? (
+                <p className="text-sm text-gray-500 text-center py-4">Belum ada lampiran.</p>
+            ) : (
+                <div className="space-y-2">
+                    {attachments.map((att) => (
+                        <div
+                            key={att.id}
+                            className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 border border-gray-100 hover:bg-gray-100 transition-colors"
+                        >
+                            {/* File Icon or Image Preview */}
+                            {isImageFile(att.file_type) ? (
+                                <div
+                                    className="w-10 h-10 rounded overflow-hidden cursor-pointer flex-shrink-0 border border-gray-200"
+                                    onClick={() => setPreviewImage(att)}
+                                >
+                                    <img
+                                        src={`/storage/${att.file_path}`}
+                                        alt={att.file_name}
+                                        className="w-full h-full object-cover"
+                                    />
+                                </div>
+                            ) : (
+                                <span className="text-2xl flex-shrink-0">{getFileIcon(att.file_type)}</span>
+                            )}
+
+                            {/* File Info */}
+                            <div className="flex-1 min-w-0">
+                                <a
+                                    href={`/storage/${att.file_path}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-sm font-medium text-indigo-600 hover:text-indigo-800 truncate block"
+                                >
+                                    {att.file_name}
+                                </a>
+                                <div className="flex items-center gap-2 text-xs text-gray-400">
+                                    <span>{formatFileSize(att.file_size)}</span>
+                                    <span>•</span>
+                                    <span>{att.uploader?.name || 'Unknown'}</span>
+                                    <span>•</span>
+                                    <span>{new Date(att.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                                </div>
+                            </div>
+
+                            {/* Actions */}
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                                <a
+                                    href={`/storage/${att.file_path}`}
+                                    download={att.file_name}
+                                    className="p-1.5 text-gray-400 hover:text-indigo-600 rounded transition-colors"
+                                    title="Download"
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                    </svg>
+                                </a>
+                                {canUpload && (
+                                    <button
+                                        onClick={() => setDeleteTarget(att)}
+                                        className="p-1.5 text-gray-400 hover:text-red-600 rounded transition-colors"
+                                        title="Hapus"
+                                    >
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                        </svg>
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            {/* Image Preview Modal */}
+            {previewImage && (
+                <div
+                    className="fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center p-4"
+                    onClick={() => setPreviewImage(null)}
+                >
+                    <div className="max-w-4xl max-h-[90vh] relative">
+                        <img
+                            src={`/storage/${previewImage.file_path}`}
+                            alt={previewImage.file_name}
+                            className="max-w-full max-h-[85vh] object-contain rounded"
+                        />
+                        <p className="text-center text-white text-sm mt-2">{previewImage.file_name}</p>
+                        <button
+                            onClick={() => setPreviewImage(null)}
+                            className="absolute top-2 right-2 text-white bg-black bg-opacity-50 rounded-full p-1 hover:bg-opacity-75"
+                        >
+                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Delete Confirmation */}
+            <ConfirmModal
+                open={!!deleteTarget}
+                onClose={() => setDeleteTarget(null)}
+                onConfirm={() => handleDelete(deleteTarget)}
+                title="Hapus Lampiran"
+                message={`Apakah Anda yakin ingin menghapus "${deleteTarget?.file_name}"?`}
+                confirmText="Hapus"
+            />
+        </Card>
+    );
+}
+
 export default function PurchaseOrderDetail() {
     const [po, setPo] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -105,7 +353,7 @@ export default function PurchaseOrderDetail() {
     const [confirmState, setConfirmState] = useState({ open: false, action: null });
     const toast = useToast();
 
-    const poId = window.location.pathname.split('/').pop();
+    const poId = window.location.pathname.split('/').filter(Boolean).pop();
 
     useEffect(() => {
         fetchPo();
@@ -198,11 +446,15 @@ export default function PurchaseOrderDetail() {
     const approvalHistory = po.approval_history || po.approvals || [];
 
     const subtotal = (po.items || []).reduce((sum, item) => sum + (item.total_price || (item.qty * item.unit_price)), 0);
-    const ppn = subtotal * 0.11;
-    const grandTotal = subtotal + ppn;
+    const discount = Number(po.discount || 0);
+    const subtotalAfterDiscount = subtotal - discount;
+    const includePpn = po.include_ppn !== false;
+    const ppn = includePpn ? subtotalAfterDiscount * 0.11 : 0;
+    const grandTotal = subtotalAfterDiscount + ppn;
 
     const isDraft = po.status === 'DRAFT';
     const isPending = po.status === 'PENDING_APPROVAL';
+    const canUpload = isDraft || isPending;
 
     return (
         <AuthenticatedLayout
@@ -315,10 +567,18 @@ export default function PurchaseOrderDetail() {
                                     <span className="text-sm text-gray-600">Subtotal:</span>
                                     <span className="text-sm font-semibold">{formatCurrency(subtotal)}</span>
                                 </div>
-                                <div className="flex justify-between py-1 border-b border-gray-200">
-                                    <span className="text-sm text-gray-600">PPN 11%:</span>
-                                    <span className="text-sm font-semibold">{formatCurrency(ppn)}</span>
-                                </div>
+                                {discount > 0 && (
+                                    <div className="flex justify-between py-1 text-red-600">
+                                        <span className="text-sm">Diskon:</span>
+                                        <span className="text-sm font-semibold">- {formatCurrency(discount)}</span>
+                                    </div>
+                                )}
+                                {includePpn && (
+                                    <div className="flex justify-between py-1 border-b border-gray-200">
+                                        <span className="text-sm text-gray-600">PPN 11%:</span>
+                                        <span className="text-sm font-semibold">{formatCurrency(ppn)}</span>
+                                    </div>
+                                )}
                                 <div className="flex justify-between py-2">
                                     <span className="text-base font-bold text-gray-900">Grand Total:</span>
                                     <span className="text-base font-bold text-indigo-700">{formatCurrency(grandTotal)}</span>
@@ -326,6 +586,9 @@ export default function PurchaseOrderDetail() {
                             </div>
                         </div>
                     </Card>
+
+                    {/* Attachments */}
+                    <AttachmentsSection poId={poId} canUpload={canUpload} />
 
                     {/* Approval History */}
                     <Card title="Riwayat Approval">

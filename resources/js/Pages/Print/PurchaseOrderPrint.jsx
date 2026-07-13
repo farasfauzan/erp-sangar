@@ -8,6 +8,31 @@ const formatDate = (dateStr) => {
     });
 };
 
+function toRoman(num) {
+    const romanNumerals = [
+        [1000, 'M'], [900, 'CM'], [500, 'D'], [400, 'CD'],
+        [100, 'C'], [90, 'XC'], [50, 'L'], [40, 'XL'],
+        [10, 'X'], [9, 'IX'], [5, 'V'], [4, 'IV'], [1, 'I'],
+    ];
+    let result = '';
+    for (const [value, numeral] of romanNumerals) {
+        while (num >= value) {
+            result += numeral;
+            num -= value;
+        }
+    }
+    return result;
+}
+
+function getTitle(po) {
+    if (po.po_type === 'REVISI') return 'PURCHASE ORDER REVISI';
+    if (po.po_type === 'ADDENDUM') {
+        const num = po.addendum_number ? toRoman(po.addendum_number) : 'I';
+        return `PURCHASE ORDER (ADDENDUM ${num})`;
+    }
+    return 'PURCHASE ORDER';
+}
+
 export default function PurchaseOrderPrint({ po }) {
     if (!po) {
         return <div className="p-8 text-center text-gray-500">Data PO tidak ditemukan.</div>;
@@ -15,8 +40,16 @@ export default function PurchaseOrderPrint({ po }) {
 
     const items = po.items || [];
     const subtotal = items.reduce((sum, item) => sum + (item.total_price || (item.qty * item.unit_price)), 0);
-    const ppn = subtotal * 0.11;
-    const grandTotal = subtotal + ppn;
+    const discount = Number(po.discount || 0);
+    const subtotalAfterDiscount = subtotal - discount;
+    const includePpn = po.include_ppn !== false;
+    const ppn = includePpn ? subtotalAfterDiscount * 0.11 : 0;
+    const grandTotal = subtotalAfterDiscount + ppn;
+    const hasDurasi = items.some(item => item.durasi);
+
+    const catatanLines = po.catatan
+        ? po.catatan.split('\n').filter(line => line.trim())
+        : [];
 
     return (
         <>
@@ -40,148 +73,196 @@ export default function PurchaseOrderPrint({ po }) {
                 </div>
 
                 {/* Document */}
-                <div className="max-w-[210mm] mx-auto bg-white p-8 print:p-4 print:shadow-none shadow-lg">
+                <div className="max-w-[210mm] mx-auto bg-white p-8 print:p-4 print:shadow-none shadow-lg" style={{ fontSize: '11px', lineHeight: '1.5' }}>
+
                     {/* Company Header */}
-                    <div className="flex items-start justify-between border-b-2 border-gray-800 pb-4 mb-6">
-                        <div className="flex items-center gap-4">
-                            <div className="w-16 h-16 bg-gray-200 rounded flex items-center justify-center text-xs text-gray-500 font-bold">
-                                LOGO
-                            </div>
-                            <div>
-                                <h1 className="text-xl font-bold text-gray-900">PT. Nama Perusahaan</h1>
-                                <p className="text-sm text-gray-600">Jl. Contoh No. 123, Kota, Provinsi</p>
-                                <p className="text-sm text-gray-600">Telp: (021) 123-4567 | Email: info@perusahaan.com</p>
-                            </div>
+                    <div className="flex items-start justify-between border-b-2 border-black pb-3 mb-4">
+                        <div>
+                            <h1 className="text-lg font-bold text-black tracking-wide">PT. SINAR CERAH SEMPURNA</h1>
+                            <p className="text-xs text-gray-700">Karangrejo Barat No. 9 RT 002 RW 002</p>
+                            <p className="text-xs text-gray-700">Tinjomoyo, Banyumanik, Semarang</p>
+                            <p className="text-xs text-gray-700">NPWP: 002.652.984.2-331.000</p>
                         </div>
                         <div className="text-right">
-                            <h2 className="text-lg font-bold text-gray-800 uppercase tracking-wide">Purchase Order</h2>
+                            <div className="w-16 h-16 bg-gray-100 rounded flex items-center justify-center text-xs text-gray-400 border">
+                                LOGO
+                            </div>
                         </div>
                     </div>
 
-                    {/* PO Info */}
-                    <div className="grid grid-cols-2 gap-6 mb-6">
-                        <div>
-                            <table className="text-sm">
-                                <tbody>
-                                    <tr>
-                                        <td className="pr-3 py-1 text-gray-500 align-top">No. PO</td>
-                                        <td className="py-1 font-semibold text-gray-900">: {po.po_number}</td>
-                                    </tr>
-                                    <tr>
-                                        <td className="pr-3 py-1 text-gray-500 align-top">Tanggal</td>
-                                        <td className="py-1 font-semibold text-gray-900">: {formatDate(po.date)}</td>
-                                    </tr>
-                                    <tr>
-                                        <td className="pr-3 py-1 text-gray-500 align-top">Status</td>
-                                        <td className="py-1 font-semibold text-gray-900">: {po.status?.replace(/_/g, ' ')}</td>
-                                    </tr>
-                                </tbody>
-                            </table>
+                    {/* To Section */}
+                    <div className="mb-4">
+                        <p className="text-xs">Kepada Yth.</p>
+                        <p className="text-xs font-bold">{po.supplier_name || '—'}</p>
+                        <p className="text-xs">{po.supplier_address || ''}</p>
+                        <p className="text-xs">
+                            {po.supplier_phone ? `Telp. ${po.supplier_phone}` : ''}
+                            {po.supplier_contact_person ? ` Up. ${po.supplier_contact_person}` : ''}
+                        </p>
+                    </div>
+
+                    {/* Title */}
+                    <h2 className="text-center text-sm font-bold underline mb-4">{getTitle(po)}</h2>
+
+                    {/* Info Grid */}
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-1 mb-4 text-xs">
+                        <div className="flex">
+                            <span className="w-28 text-gray-600">Nomor</span>
+                            <span>: {po.po_number}</span>
                         </div>
-                        <div>
-                            <table className="text-sm">
-                                <tbody>
-                                    <tr>
-                                        <td className="pr-3 py-1 text-gray-500 align-top">Supplier</td>
-                                        <td className="py-1 font-semibold text-gray-900">: {po.supplier_name}</td>
-                                    </tr>
-                                    <tr>
-                                        <td className="pr-3 py-1 text-gray-500 align-top">Proyek</td>
-                                        <td className="py-1 font-semibold text-gray-900">: {po.project?.project_name || '—'}</td>
-                                    </tr>
-                                    <tr>
-                                        <td className="pr-3 py-1 text-gray-500 align-top">Syarat Bayar</td>
-                                        <td className="py-1 font-semibold text-gray-900">: {po.payment_terms || '—'}</td>
-                                    </tr>
-                                </tbody>
-                            </table>
+                        <div className="flex">
+                            <span className="w-28 text-gray-600">Contact Person</span>
+                            <span>: {po.supplier_contact_person || '—'}</span>
                         </div>
+                        <div className="flex">
+                            <span className="w-28 text-gray-600">Tanggal</span>
+                            <span>: {formatDate(po.date)}</span>
+                        </div>
+                        <div className="flex">
+                            <span className="w-28 text-gray-600">Lokasi</span>
+                            <span>: {po.project_location || po.project?.location || '—'}</span>
+                        </div>
+                        <div className="flex">
+                            <span className="w-28 text-gray-600">Proyek</span>
+                            <span>: {po.project?.project_name || '—'}</span>
+                        </div>
+                    </div>
+
+                    {/* Opening */}
+                    <div className="mb-3 text-xs">
+                        <p>Dengan Hormat,</p>
+                        <p>Bersama ini kami mohon diadakan material pada proyek tersebut sebagai berikut:</p>
                     </div>
 
                     {/* Items Table */}
-                    <table className="w-full border-collapse mb-6 text-sm">
+                    <table className="w-full border-collapse mb-3 text-xs" style={{ border: '1px solid #333' }}>
                         <thead>
                             <tr className="bg-gray-800 text-white">
-                                <th className="border border-gray-300 px-3 py-2 text-center w-10">No</th>
-                                <th className="border border-gray-300 px-3 py-2 text-left">Nama Item</th>
-                                <th className="border border-gray-300 px-3 py-2 text-center w-16">Qty</th>
-                                <th className="border border-gray-300 px-3 py-2 text-center w-16">Satuan</th>
-                                <th className="border border-gray-300 px-3 py-2 text-right w-28">Harga Satuan</th>
-                                <th className="border border-gray-300 px-3 py-2 text-right w-32">Total</th>
+                                <th className="border border-gray-400 px-2 py-1.5 text-center" style={{ width: '30px' }}>No</th>
+                                <th className="border border-gray-400 px-2 py-1.5 text-left">Uraian</th>
+                                <th className="border border-gray-400 px-2 py-1.5 text-center" style={{ width: '50px' }}>Volume</th>
+                                <th className="border border-gray-400 px-2 py-1.5 text-center" style={{ width: '50px' }}>Satuan</th>
+                                {hasDurasi && (
+                                    <th className="border border-gray-400 px-2 py-1.5 text-center" style={{ width: '60px' }}>Durasi</th>
+                                )}
+                                <th className="border border-gray-400 px-2 py-1.5 text-right" style={{ width: '90px' }}>Harga Satuan</th>
+                                <th className="border border-gray-400 px-2 py-1.5 text-right" style={{ width: '100px' }}>Jumlah</th>
                             </tr>
                         </thead>
                         <tbody>
                             {items.length === 0 ? (
                                 <tr>
-                                    <td colSpan="6" className="border border-gray-300 px-3 py-4 text-center text-gray-500">
+                                    <td colSpan={hasDurasi ? 7 : 6} className="border border-gray-400 px-2 py-3 text-center text-gray-500">
                                         Tidak ada item
                                     </td>
                                 </tr>
                             ) : (
-                                items.map((item, index) => (
-                                    <tr key={item.id || index} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                                        <td className="border border-gray-300 px-3 py-2 text-center">{index + 1}</td>
-                                        <td className="border border-gray-300 px-3 py-2">{item.item_name || item.rab_budget?.description || '—'}</td>
-                                        <td className="border border-gray-300 px-3 py-2 text-center">{Number(item.qty).toLocaleString('id-ID')}</td>
-                                        <td className="border border-gray-300 px-3 py-2 text-center">{item.unit || item.rab_budget?.unit || '—'}</td>
-                                        <td className="border border-gray-300 px-3 py-2 text-right">{formatCurrency(item.unit_price)}</td>
-                                        <td className="border border-gray-300 px-3 py-2 text-right font-medium">{formatCurrency(item.total_price || (item.qty * item.unit_price))}</td>
-                                    </tr>
-                                ))
+                                items.map((item, index) => {
+                                    const isSubItem = item.item_name?.startsWith('-');
+                                    return (
+                                        <tr key={item.id || index} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                                            <td className="border border-gray-400 px-2 py-1 text-center">
+                                                {isSubItem ? '' : index + 1}
+                                            </td>
+                                            <td className={`border border-gray-400 px-2 py-1 ${isSubItem ? 'pl-6 italic text-gray-600' : ''}`}>
+                                                {item.item_name || item.rab_budget?.description || '—'}
+                                            </td>
+                                            <td className="border border-gray-400 px-2 py-1 text-center">
+                                                {isSubItem ? '' : Number(item.qty).toLocaleString('id-ID')}
+                                            </td>
+                                            <td className="border border-gray-400 px-2 py-1 text-center">
+                                                {isSubItem ? '' : (item.unit || item.rab_budget?.unit || '—')}
+                                            </td>
+                                            {hasDurasi && (
+                                                <td className="border border-gray-400 px-2 py-1 text-center">
+                                                    {isSubItem ? '' : (item.durasi || '')}
+                                                </td>
+                                            )}
+                                            <td className="border border-gray-400 px-2 py-1 text-right">
+                                                {isSubItem ? '' : formatCurrency(item.unit_price)}
+                                            </td>
+                                            <td className="border border-gray-400 px-2 py-1 text-right font-medium">
+                                                {isSubItem ? '' : formatCurrency(item.total_price || (item.qty * item.unit_price))}
+                                            </td>
+                                        </tr>
+                                    );
+                                })
                             )}
                         </tbody>
                     </table>
 
                     {/* Totals */}
-                    <div className="flex justify-end mb-8">
-                        <div className="w-72">
-                            <div className="flex justify-between py-1.5 border-b border-gray-200 text-sm">
-                                <span className="text-gray-600">Subtotal</span>
+                    <div className="flex justify-end mb-4">
+                        <div className="w-72 text-xs">
+                            <div className="flex justify-between py-1">
+                                <span className="text-gray-600">SUBTOTAL</span>
                                 <span className="font-medium">{formatCurrency(subtotal)}</span>
                             </div>
-                            <div className="flex justify-between py-1.5 border-b border-gray-200 text-sm">
-                                <span className="text-gray-600">PPN 11%</span>
-                                <span className="font-medium">{formatCurrency(ppn)}</span>
-                            </div>
-                            <div className="flex justify-between py-2.5 border-b-2 border-gray-800 text-base font-bold">
-                                <span>Grand Total</span>
-                                <span className="text-indigo-700">{formatCurrency(grandTotal)}</span>
+                            {discount > 0 && (
+                                <div className="flex justify-between py-1 text-red-600">
+                                    <span>Diskon</span>
+                                    <span>- {formatCurrency(discount)}</span>
+                                </div>
+                            )}
+                            {includePpn && (
+                                <div className="flex justify-between py-1">
+                                    <span className="text-gray-600">PPN 11%</span>
+                                    <span className="font-medium">{formatCurrency(ppn)}</span>
+                                </div>
+                            )}
+                            <div className="flex justify-between py-1.5 border-t-2 border-black font-bold text-sm">
+                                <span>TOTAL</span>
+                                <span>{formatCurrency(grandTotal)}</span>
                             </div>
                         </div>
                     </div>
 
-                    {/* Notes */}
-                    {po.notes && (
-                        <div className="mb-8 text-sm">
-                            <p className="text-gray-500 font-medium">Catatan:</p>
-                            <p className="text-gray-700">{po.notes}</p>
+                    {/* Catatan */}
+                    {catatanLines.length > 0 && (
+                        <div className="mb-4 text-xs">
+                            <p className="font-bold mb-1">Catatan:</p>
+                            <ul className="list-disc pl-5 space-y-0.5">
+                                {catatanLines.map((line, i) => (
+                                    <li key={i}>{line.replace(/^[-•*]\s*/, '')}</li>
+                                ))}
+                            </ul>
                         </div>
                     )}
 
-                    {/* Approval Signatures */}
-                    <div className="grid grid-cols-3 gap-8 mt-12 pt-4 border-t border-gray-300">
-                        <div className="text-center">
-                            <p className="text-sm font-medium text-gray-600 mb-1">Disiapkan oleh</p>
-                            <div className="h-20 border-b border-gray-400 mx-4 mb-2" />
-                            <p className="text-sm text-gray-500">(___________________)</p>
-                            <p className="text-xs text-gray-400 mt-1">Nama & Tanda Tangan</p>
+                    {/* Faktur Pajak */}
+                    <div className="mb-4 text-xs border border-gray-300 p-3 rounded">
+                        <p className="font-bold mb-1">Faktur Pajak</p>
+                        <div className="grid grid-cols-3 gap-2">
+                            <div>
+                                <span className="text-gray-500">Nama:</span> {po.faktur_pajak_nama || 'PT. SINAR CERAH SEMPURNA'}
+                            </div>
+                            <div>
+                                <span className="text-gray-500">NPWP:</span> {po.faktur_pajak_npwp || '002.652.984.2-331.000'}
+                            </div>
+                            <div>
+                                <span className="text-gray-500">Alamat:</span> {po.faktur_pajak_alamat || 'Karangrejo Barat No. 9 RT 002 RW 002, Tinjomoyo, Banyumanik, Semarang'}
+                            </div>
                         </div>
-                        <div className="text-center">
-                            <p className="text-sm font-medium text-gray-600 mb-1">Disetujui oleh</p>
-                            <div className="h-20 border-b border-gray-400 mx-4 mb-2" />
-                            <p className="text-sm text-gray-500">(___________________)</p>
-                            <p className="text-xs text-gray-400 mt-1">Nama & Tanda Tangan</p>
-                        </div>
-                        <div className="text-center">
-                            <p className="text-sm font-medium text-gray-600 mb-1">Diterima oleh</p>
-                            <div className="h-20 border-b border-gray-400 mx-4 mb-2" />
-                            <p className="text-sm text-gray-500">(___________________)</p>
-                            <p className="text-xs text-gray-400 mt-1">Nama & Tanda Tangan</p>
+                    </div>
+
+                    {/* Closing */}
+                    <div className="mb-8 text-xs">
+                        <p>Demikian surat dari kami, atas perhatian dan kerjasamanya kami ucapkan terima kasih.</p>
+                    </div>
+
+                    {/* Signature Block */}
+                    <div className="flex justify-end mt-12">
+                        <div className="text-center" style={{ width: '220px' }}>
+                            <p className="text-xs mb-1">Hormat Kami,</p>
+                            <p className="text-xs font-bold">PT. SINAR CERAH SEMPURNA</p>
+                            <div className="h-16 mb-1" />
+                            <p className="text-xs font-bold border-t border-black pt-1">NARWAN PRATANTA ST</p>
+                            <p className="text-xs">Manager Komersial</p>
                         </div>
                     </div>
 
                     {/* Footer */}
-                    <div className="mt-8 pt-4 border-t border-gray-200 text-xs text-gray-400 text-center">
+                    <div className="mt-8 pt-3 border-t border-gray-200 text-xs text-gray-400 text-center">
                         Dicetak pada {new Date().toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                     </div>
                 </div>

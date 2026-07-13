@@ -119,7 +119,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 // Print routes — pass data as Inertia props so pages render standalone
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/purchase-orders/{id}/print', function ($id) {
-        $po = \App\Models\PurchaseOrder::with(['items.rabBudget', 'project'])->findOrFail($id);
+        $po = \App\Models\PurchaseOrder::with(['items.rabBudget', 'project', 'attachments'])->findOrFail($id);
         return Inertia::render('Print/PurchaseOrderPrint', ['po' => $po]);
     })->name('purchase-orders.print');
 
