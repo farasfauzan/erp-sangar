@@ -2,6 +2,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head } from '@inertiajs/react';
 import axios from 'axios';
 import { useEffect, useState } from 'react';
+import ConfirmModal from '@/Components/ui/ConfirmModal';
 
 const today = () => new Date().toISOString().slice(0, 10).replaceAll('-', '');
 const initialForm = () => ({
@@ -21,6 +22,7 @@ export default function Spk() {
     const [saving, setSaving] = useState(false);
     const [showForm, setShowForm] = useState(false);
     const [message, setMessage] = useState('');
+    const [confirmState, setConfirmState] = useState({ open: false, spk: null });
 
     const load = async () => {
         setLoading(true);
@@ -64,7 +66,12 @@ export default function Spk() {
     };
 
     const submit = async (spk) => {
-        if (!confirm(`Kirim ${spk.spk_number} untuk approval?`)) return;
+        setConfirmState({ open: true, spk });
+    };
+
+    const handleConfirmSubmit = async () => {
+        const spk = confirmState.spk;
+        setConfirmState({ open: false, spk: null });
         try {
             const response = await axios.put(`/api/spks/${spk.id}/submit`);
             setMessage(response.data?.message || 'SPK dikirim untuk approval.');
@@ -137,6 +144,15 @@ export default function Spk() {
                     </section>
                 </div>
             </div>
+
+            <ConfirmModal
+                open={confirmState.open}
+                onClose={() => setConfirmState({ open: false, spk: null })}
+                onConfirm={handleConfirmSubmit}
+                title="Kirim SPK"
+                message={confirmState.spk ? `Kirim ${confirmState.spk.spk_number} untuk approval?` : ''}
+                confirmText="Kirim"
+            />
         </AuthenticatedLayout>
     );
 }

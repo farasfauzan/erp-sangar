@@ -2,6 +2,8 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 import axios from 'axios';
+import { useToast } from '@/Components/ui/Toast';
+import InputPromptModal from '@/Components/ui/InputPromptModal';
 
 const money = (value) => `Rp ${Number(value || 0).toLocaleString('id-ID')}`;
 const requestNumber = () => `PD-${new Date().toISOString().slice(0, 10).replaceAll('-', '')}-${Date.now().toString().slice(-4)}`;
@@ -11,6 +13,8 @@ export default function FundRequestPage() {
     const [funds, setFunds] = useState([]);
     const [loading, setLoading] = useState(true);
     const [form, setForm] = useState({ project_id: '', request_number: requestNumber(), amount: '', description: '' });
+    const [promptState, setPromptState] = useState({ open: false, fund: null, defaultValue: '' });
+    const toast = useToast();
 
     useEffect(() => {
         fetchData();
@@ -36,20 +40,24 @@ export default function FundRequestPage() {
             await axios.post('/api/fund-requests', form);
             setForm({ project_id: projects[0]?.id || '', request_number: requestNumber(), amount: '', description: '' });
             await fetchData();
-            alert('Permohonan dana dikirim untuk approval.');
+            toast.success('Permohonan dana dikirim untuk approval.');
         } catch (err) {
-            alert(err.response?.data?.message || 'Gagal membuat permohonan dana.');
+            toast.error(err.response?.data?.message || 'Gagal membuat permohonan dana.');
         }
     };
 
     const submitLpj = async (fund) => {
-        const lpj_notes = prompt('Catatan LPJ:', fund.lpj_notes || 'LPJ sudah lengkap.');
-        if (lpj_notes === null) return;
+        setPromptState({ open: true, fund, defaultValue: fund.lpj_notes || 'LPJ sudah lengkap.' });
+    };
+
+    const handlePromptSubmit = async (lpj_notes) => {
+        const fund = promptState.fund;
+        setPromptState({ open: false, fund: null, defaultValue: '' });
         try {
             await axios.put(`/api/fund-requests/${fund.id}/lpj`, { lpj_notes });
             await fetchData();
         } catch (err) {
-            alert(err.response?.data?.message || 'Gagal mengirim LPJ.');
+            toast.error(err.response?.data?.message || 'Gagal mengirim LPJ.');
         }
     };
 
@@ -120,6 +128,17 @@ export default function FundRequestPage() {
                     </div>
                 </div>
             </div>
+
+            <InputPromptModal
+                open={promptState.open}
+                onClose={() => setPromptState({ open: false, fund: null, defaultValue: '' })}
+                onSubmit={handlePromptSubmit}
+                title="Catatan LPJ"
+                message="Masukkan catatan LPJ untuk permohonan dana ini."
+                defaultValue={promptState.defaultValue}
+                inputLabel="Catatan LPJ"
+                submitText="Kirim LPJ"
+            />
         </AuthenticatedLayout>
     );
 }

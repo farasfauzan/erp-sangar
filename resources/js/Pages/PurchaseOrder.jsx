@@ -2,10 +2,14 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head } from '@inertiajs/react';
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+import { useToast } from '@/Components/ui/Toast';
+import ConfirmModal from '@/Components/ui/ConfirmModal';
 
 export default function PurchaseOrder() {
     const [pos, setPos] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [confirmState, setConfirmState] = useState({ open: false, poId: null });
+    const toast = useToast();
 
     useEffect(() => {
         fetchPos();
@@ -23,12 +27,17 @@ export default function PurchaseOrder() {
     };
 
     const submitPo = async (id) => {
-        if (!confirm('Kirim PO untuk approval?')) return;
+        setConfirmState({ open: true, poId: id });
+    };
+
+    const handleConfirmSubmit = async () => {
+        const id = confirmState.poId;
+        setConfirmState({ open: false, poId: null });
         try {
             await axios.put(`/api/pos/${id}/submit`);
             await fetchPos();
         } catch (err) {
-            alert(err.response?.data?.message || 'Gagal submit PO.');
+            toast.error(err.response?.data?.message || 'Gagal submit PO.');
         }
     };
 
@@ -97,6 +106,15 @@ export default function PurchaseOrder() {
                     </div>
                 </div>
             </div>
+
+            <ConfirmModal
+                open={confirmState.open}
+                onClose={() => setConfirmState({ open: false, poId: null })}
+                onConfirm={handleConfirmSubmit}
+                title="Kirim PO"
+                message="Kirim PO untuk approval?"
+                confirmText="Kirim"
+            />
         </AuthenticatedLayout>
     );
 }

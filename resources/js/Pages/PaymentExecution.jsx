@@ -2,6 +2,8 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 import axios from 'axios';
+import { useToast } from '@/Components/ui/Toast';
+import ConfirmModal from '@/Components/ui/ConfirmModal';
 
 const today = () => new Date().toISOString().slice(0, 10);
 const money = (value) => `Rp ${Number(value || 0).toLocaleString('id-ID')}`;
@@ -11,6 +13,8 @@ export default function PaymentExecution() {
     const [funds, setFunds] = useState([]);
     const [loading, setLoading] = useState(true);
     const [payment, setPayment] = useState({ payment_method: 'TRANSFER', payment_date: today(), proof_of_payment: '' });
+    const [confirmState, setConfirmState] = useState({ open: false, url: '', message: '' });
+    const toast = useToast();
 
     useEffect(() => {
         fetchData();
@@ -29,15 +33,20 @@ export default function PaymentExecution() {
 
     const updatePayment = (field, value) => setPayment((current) => ({ ...current, [field]: value }));
 
-    const pay = async (url, message) => {
-        if (!confirm(message)) return;
+    const pay = (url, message) => {
+        setConfirmState({ open: true, url, message });
+    };
+
+    const handleConfirmPay = async () => {
+        const { url } = confirmState;
+        setConfirmState({ open: false, url: '', message: '' });
         try {
             await axios.post(url, payment);
-            alert('Pembayaran dan bukti bayar dicatat.');
+            toast.success('Pembayaran dan bukti bayar dicatat.');
             setPayment((current) => ({ ...current, proof_of_payment: '' }));
             await fetchData();
         } catch (err) {
-            alert(err.response?.data?.message || 'Gagal mengeksekusi pembayaran.');
+            toast.error(err.response?.data?.message || 'Gagal mengeksekusi pembayaran.');
         }
     };
 
@@ -100,6 +109,15 @@ export default function PaymentExecution() {
                     )}
                 </div>
             </div>
+
+            <ConfirmModal
+                open={confirmState.open}
+                onClose={() => setConfirmState({ open: false, url: '', message: '' })}
+                onConfirm={handleConfirmPay}
+                title="Konfirmasi Pembayaran"
+                message={confirmState.message}
+                confirmText="Bayar"
+            />
         </AuthenticatedLayout>
     );
 }

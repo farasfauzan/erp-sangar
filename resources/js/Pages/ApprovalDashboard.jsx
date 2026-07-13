@@ -2,6 +2,9 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 import axios from 'axios';
+import { useToast } from '@/Components/ui/Toast';
+import ConfirmModal from '@/Components/ui/ConfirmModal';
+import InputPromptModal from '@/Components/ui/InputPromptModal';
 
 const money = (value) => `Rp ${Number(value || 0).toLocaleString('id-ID')}`;
 const docType = (invoice) => invoice.invoiceable_type?.includes('PurchaseOrder') ? 'PO Material' : 'SPK Subkon';
@@ -13,6 +16,9 @@ export default function ApprovalDashboard() {
     const [rabSelected, setRabSelected] = useState(new Set());
     const [projects, setProjects] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [confirmState, setConfirmState] = useState({ open: false, title: '', message: '', onConfirm: null });
+    const [promptState, setPromptState] = useState({ open: false, defaultValue: '', callback: null });
+    const toast = useToast();
 
     useEffect(() => {
         fetchData();
@@ -31,7 +37,7 @@ export default function ApprovalDashboard() {
             ]);
             setData({ pos: pos.data, spks: spks.data, opnames: opnames.data, invoices: invoices.data, funds: funds.data });
         } catch (err) {
-            alert('Gagal memuat data: ' + (err.response?.data?.message || err.message));
+            toast.error('Gagal memuat data: ' + (err.response?.data?.message || err.message));
         } finally {
             setLoading(false);
         }
@@ -57,46 +63,79 @@ export default function ApprovalDashboard() {
     };
 
     const approveRabSelected = async () => {
-        if (rabSelected.size === 0) return alert('Pilih item terlebih dahulu.');
-        if (!confirm(`Setujui ${rabSelected.size} item RAB terpilih?`)) return;
-        try {
-            await axios.post('/api/rab/approve', { item_ids: [...rabSelected] });
-            fetchRabPending(rabProjectId);
-        } catch (err) { alert(err.response?.data?.message || 'Gagal approve.'); }
+        if (rabSelected.size === 0) return toast.error('Pilih item terlebih dahulu.');
+        setConfirmState({
+            open: true,
+            title: 'Setujui RAB',
+            message: `Setujui ${rabSelected.size} item RAB terpilih?`,
+            onConfirm: async () => {
+                setConfirmState({ open: false, title: '', message: '', onConfirm: null });
+                try {
+                    await axios.post('/api/rab/approve', { item_ids: [...rabSelected] });
+                    fetchRabPending(rabProjectId);
+                } catch (err) { toast.error(err.response?.data?.message || 'Gagal approve.'); }
+            }
+        });
     };
 
     const rejectRabSelected = async () => {
-        if (rabSelected.size === 0) return alert('Pilih item terlebih dahulu.');
-        if (!confirm(`Tolak ${rabSelected.size} item RAB terpilih?`)) return;
-        try {
-            await axios.post('/api/rab/reject', { item_ids: [...rabSelected] });
-            fetchRabPending(rabProjectId);
-        } catch (err) { alert(err.response?.data?.message || 'Gagal reject.'); }
+        if (rabSelected.size === 0) return toast.error('Pilih item terlebih dahulu.');
+        setConfirmState({
+            open: true,
+            title: 'Tolak RAB',
+            message: `Tolak ${rabSelected.size} item RAB terpilih?`,
+            onConfirm: async () => {
+                setConfirmState({ open: false, title: '', message: '', onConfirm: null });
+                try {
+                    await axios.post('/api/rab/reject', { item_ids: [...rabSelected] });
+                    fetchRabPending(rabProjectId);
+                } catch (err) { toast.error(err.response?.data?.message || 'Gagal reject.'); }
+            }
+        });
     };
 
     const approveRabAll = async () => {
         if (!rabProjectId) return;
-        if (!confirm('Setujui SEMUA item RAB pending untuk proyek ini?')) return;
-        try {
-            await axios.post('/api/rab/approve', { project_id: parseInt(rabProjectId) });
-            fetchRabPending(rabProjectId);
-        } catch (err) { alert(err.response?.data?.message || 'Gagal approve.'); }
+        setConfirmState({
+            open: true,
+            title: 'Setujui Semua RAB',
+            message: 'Setujui SEMUA item RAB pending untuk proyek ini?',
+            onConfirm: async () => {
+                setConfirmState({ open: false, title: '', message: '', onConfirm: null });
+                try {
+                    await axios.post('/api/rab/approve', { project_id: parseInt(rabProjectId) });
+                    fetchRabPending(rabProjectId);
+                } catch (err) { toast.error(err.response?.data?.message || 'Gagal approve.'); }
+            }
+        });
     };
 
     const run = async (method, url, message, payload = {}) => {
-        if (!confirm(message)) return;
-        try {
-            await axios[method](url, payload);
-            await fetchData();
-        } catch (err) {
-            alert(err.response?.data?.message || 'Aksi gagal.');
-        }
+        setConfirmState({
+            open: true,
+            title: 'Konfirmasi',
+            message,
+            onConfirm: async () => {
+                setConfirmState({ open: false, title: '', message: '', onConfirm: null });
+                try {
+                    await axios[method](url, payload);
+                    await fetchData();
+                } catch (err) {
+                    toast.error(err.response?.data?.message || 'Aksi gagal.');
+                }
+            }
+        });
     };
 
     const reject = async (type, id) => {
-        const notes = prompt('Catatan penolakan:', 'Dokumen belum sesuai.');
-        if (notes === null) return;
-        await run('put', `/api/${type}/${id}/reject`, 'Tolak dokumen ini?', { notes });
+        setPromptState({
+            open: true,
+            defaultValue: 'Dokumen belum sesuai.',
+            callback: async (notes) => {
+                setPromptState({ open: false, defaultValue: '', callback: null });
+                await run('put', `/api/${type}/${id}/reject`, 'Tolak dokumen ini?', { notes });
+            }
+        });
     };
 
     const pendingPos = data.pos.filter((po) => po.status === 'PENDING_APPROVAL');
@@ -272,6 +311,26 @@ export default function ApprovalDashboard() {
                     )}
                 </div>
             </div>
+
+            <ConfirmModal
+                open={confirmState.open}
+                onClose={() => setConfirmState({ open: false, title: '', message: '', onConfirm: null })}
+                onConfirm={confirmState.onConfirm}
+                title={confirmState.title}
+                message={confirmState.message}
+                confirmText="Ya"
+            />
+
+            <InputPromptModal
+                open={promptState.open}
+                onClose={() => setPromptState({ open: false, defaultValue: '', callback: null })}
+                onSubmit={promptState.callback}
+                title="Catatan Penolakan"
+                message="Masukkan alasan penolakan dokumen."
+                defaultValue={promptState.defaultValue}
+                inputLabel="Catatan"
+                submitText="Tolak"
+            />
         </AuthenticatedLayout>
     );
 }

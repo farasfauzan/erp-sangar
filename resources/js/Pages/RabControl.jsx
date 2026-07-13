@@ -2,6 +2,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head } from '@inertiajs/react';
 import axios from 'axios';
 import { useEffect, useMemo, useState } from 'react';
+import ConfirmModal from '@/Components/ui/ConfirmModal';
 
 const money = (value) => `Rp ${Number(value || 0).toLocaleString('id-ID')}`;
 
@@ -12,6 +13,7 @@ export default function RabControl() {
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
     const [message, setMessage] = useState('');
+    const [confirmState, setConfirmState] = useState({ open: false, endpoint: '', message: '' });
 
     const loadProjects = async () => {
         const response = await axios.get('/api/projects');
@@ -57,7 +59,13 @@ export default function RabControl() {
     }, {}), [items]);
 
     const runAction = async (endpoint, confirmation) => {
-        if (!projectId || !confirm(confirmation)) return;
+        if (!projectId) return;
+        setConfirmState({ open: true, endpoint, message: confirmation });
+    };
+
+    const handleConfirmAction = async () => {
+        const { endpoint } = confirmState;
+        setConfirmState({ open: false, endpoint: '', message: '' });
 
         setSubmitting(true);
         setMessage('');
@@ -126,6 +134,16 @@ export default function RabControl() {
                     </section>
                 </div>
             </div>
+
+            <ConfirmModal
+                open={confirmState.open}
+                onClose={() => setConfirmState({ open: false, endpoint: '', message: '' })}
+                onConfirm={handleConfirmAction}
+                title="Konfirmasi"
+                message={confirmState.message}
+                confirmText="Ya, Lanjutkan"
+                loading={submitting}
+            />
         </AuthenticatedLayout>
     );
 }
