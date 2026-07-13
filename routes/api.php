@@ -164,9 +164,11 @@ Route::middleware(['auth:web', 'verified'])->withoutMiddleware([\Illuminate\Foun
     });
 
     // ─── Goods Receipts ───────────────────────────────────────────────
-    Route::middleware('role:ADMIN,LAPANGAN,ENGINEER,PURCHASING_LEGAL,VERIFIKATOR_KEU,MGR_KOMERSIAL,KEU_KANTOR,PAJAK,ACCOUNTING')->group(function () {
+    Route::middleware('role:ADMIN,LAPANGAN,PURCHASING_LEGAL,VERIFIKATOR_KEU,MGR_KOMERSIAL,KEU_KANTOR,PAJAK,ACCOUNTING')->group(function () {
         Route::get('/goods-receipts', [GoodsReceiptController::class, 'index']);
         Route::get('/pos/{poId}/goods-receipts', [GoodsReceiptController::class, 'getByPo']);
+    });
+    Route::middleware('role:ADMIN,LAPANGAN,PURCHASING_LEGAL,VERIFIKATOR_KEU,MGR_KOMERSIAL,KEU_KANTOR,PAJAK,ACCOUNTING')->group(function () {
         Route::post('/goods-receipts', [GoodsReceiptController::class, 'store']);
     });
 
