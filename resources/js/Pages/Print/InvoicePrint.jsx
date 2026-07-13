@@ -61,13 +61,18 @@ export default function InvoicePrint({ invoice }) {
                     {/* Company Header */}
                     <div className="flex items-start justify-between border-b-2 border-gray-800 pb-4 mb-6">
                         <div className="flex items-center gap-4">
-                            <div className="w-16 h-16 bg-gray-200 rounded flex items-center justify-center text-xs text-gray-500 font-bold">
-                                LOGO
+                            <div className="flex-shrink-0 w-16 h-16">
+                                <img 
+                                    src="/images/logo-scs-print.svg" 
+                                    alt="PT. Sinar Cerah Sempurna" 
+                                    className="w-full h-full object-contain"
+                                />
                             </div>
                             <div>
-                                <h1 className="text-xl font-bold text-gray-900">PT. Nama Perusahaan</h1>
-                                <p className="text-sm text-gray-600">Jl. Contoh No. 123, Kota, Provinsi</p>
-                                <p className="text-sm text-gray-600">Telp: (021) 123-4567 | Email: info@perusahaan.com</p>
+                                <h1 className="text-xl font-bold text-gray-900">PT. SINAR CERAH SEMPURNA</h1>
+                                <p className="text-sm text-gray-600">Karangrejo Barat No. 9 RT 002 RW 002</p>
+                                <p className="text-sm text-gray-600">Tinjomoyo, Banyumanik, Semarang</p>
+                                <p className="text-sm text-gray-600">NPWP: 002.652.984.2-331.000</p>
                             </div>
                         </div>
                         <div className="text-right">

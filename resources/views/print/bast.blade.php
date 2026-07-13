@@ -30,8 +30,21 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>Berita Acara Serah Terima</h1>
-            <h2>BAST</h2>
+            <div style="display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 8px;">
+                <img 
+                    src="/images/logo-scs-print.svg" 
+                    alt="PT. Sinar Cerah Sempurna" 
+                    style="width: 80px; height: 80px; object-fit: contain;"
+                />
+                <div style="text-align: left;">
+                    <h1 style="font-size: 16px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #1e3a5f;">PT. SINAR CERAH SEMPURNA</h1>
+                    <p style="font-size: 10px; color: #4a90d9; margin: 2px 0;">Karangrejo Barat No. 9 RT 002 RW 002</p>
+                    <p style="font-size: 10px; color: #4a90d9;">Tinjomoyo, Banyumanik, Semarang</p>
+                    <p style="font-size: 10px; color: #4a90d9;">NPWP: 002.652.984.2-331.000</p>
+                </div>
+            </div>
+            <h2 style="font-size: 18px; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; color: #1e3a5f; border-top: 1px solid #e87d2f; padding-top: 8px;">Berita Acara Serah Terima</h2>
+            <h3 style="font-size: 14px; font-weight: 600; color: #e87d2f; margin-top: 4px;">BAST</h3>
         </div>
 
         <table class="info-table">

@@ -2,7 +2,7 @@ import { Head } from '@inertiajs/react';
 
 const formatCurrency = (amount) => `Rp ${Number(amount || 0).toLocaleString('id-ID')}`;
 const formatDate = (dateStr) => {
-    if (!dateStr) return '—';
+    if (!dateStr) return '\u2014';
     return new Date(dateStr).toLocaleDateString('id-ID', {
         year: 'numeric', month: 'long', day: 'numeric',
     });
@@ -62,13 +62,13 @@ export default function PurchaseOrderPrint({ po }) {
                         onClick={() => window.print()}
                         className="px-5 py-2.5 bg-indigo-600 text-white rounded-lg shadow hover:bg-indigo-700 font-medium"
                     >
-                        🖨️ Cetak
+                        Cetak
                     </button>
                     <button
                         onClick={() => window.history.back()}
                         className="px-5 py-2.5 bg-gray-200 text-gray-700 rounded-lg shadow hover:bg-gray-300 font-medium"
                     >
-                        ← Kembali
+                        Kembali
                     </button>
                 </div>
 
@@ -77,15 +77,19 @@ export default function PurchaseOrderPrint({ po }) {
 
                     {/* Company Header */}
                     <div className="flex items-start justify-between border-b-2 border-black pb-3 mb-4">
-                        <div>
-                            <h1 className="text-lg font-bold text-black tracking-wide">PT. SINAR CERAH SEMPURNA</h1>
-                            <p className="text-xs text-gray-700">Karangrejo Barat No. 9 RT 002 RW 002</p>
-                            <p className="text-xs text-gray-700">Tinjomoyo, Banyumanik, Semarang</p>
-                            <p className="text-xs text-gray-700">NPWP: 002.652.984.2-331.000</p>
-                        </div>
-                        <div className="text-right">
-                            <div className="w-16 h-16 bg-gray-100 rounded flex items-center justify-center text-xs text-gray-400 border">
-                                LOGO
+                        <div className="flex items-start gap-4">
+                            <div className="flex-shrink-0 w-24 h-24">
+                                <img 
+                                    src="/images/logo-scs-print.svg" 
+                                    alt="PT. Sinar Cerah Sempurna" 
+                                    className="w-full h-full object-contain"
+                                />
+                            </div>
+                            <div>
+                                <h1 className="text-lg font-bold text-black tracking-wide">PT. SINAR CERAH SEMPURNA</h1>
+                                <p className="text-xs text-gray-700">Karangrejo Barat No. 9 RT 002 RW 002</p>
+                                <p className="text-xs text-gray-700">Tinjomoyo, Banyumanik, Semarang</p>
+                                <p className="text-xs text-gray-700">NPWP: 002.652.984.2-331.000</p>
                             </div>
                         </div>
                     </div>
@@ -93,7 +97,7 @@ export default function PurchaseOrderPrint({ po }) {
                     {/* To Section */}
                     <div className="mb-4">
                         <p className="text-xs">Kepada Yth.</p>
-                        <p className="text-xs font-bold">{po.supplier_name || '—'}</p>
+                        <p className="text-xs font-bold">{po.supplier_name || '\u2014'}</p>
                         <p className="text-xs">{po.supplier_address || ''}</p>
                         <p className="text-xs">
                             {po.supplier_phone ? `Telp. ${po.supplier_phone}` : ''}
@@ -112,7 +116,7 @@ export default function PurchaseOrderPrint({ po }) {
                         </div>
                         <div className="flex">
                             <span className="w-28 text-gray-600">Contact Person</span>
-                            <span>: {po.supplier_contact_person || '—'}</span>
+                            <span>: {po.supplier_contact_person || '\u2014'}</span>
                         </div>
                         <div className="flex">
                             <span className="w-28 text-gray-600">Tanggal</span>
@@ -120,11 +124,11 @@ export default function PurchaseOrderPrint({ po }) {
                         </div>
                         <div className="flex">
                             <span className="w-28 text-gray-600">Lokasi</span>
-                            <span>: {po.project_location || po.project?.location || '—'}</span>
+                            <span>: {po.project_location || po.project?.location || '\u2014'}</span>
                         </div>
                         <div className="flex">
                             <span className="w-28 text-gray-600">Proyek</span>
-                            <span>: {po.project?.project_name || '—'}</span>
+                            <span>: {po.project?.project_name || '\u2014'}</span>
                         </div>
                     </div>
 
@@ -165,13 +169,13 @@ export default function PurchaseOrderPrint({ po }) {
                                                 {isSubItem ? '' : index + 1}
                                             </td>
                                             <td className={`border border-gray-400 px-2 py-1 ${isSubItem ? 'pl-6 italic text-gray-600' : ''}`}>
-                                                {item.item_name || item.rab_budget?.description || '—'}
+                                                {item.item_name || item.rab_budget?.description || '\u2014'}
                                             </td>
                                             <td className="border border-gray-400 px-2 py-1 text-center">
                                                 {isSubItem ? '' : Number(item.qty).toLocaleString('id-ID')}
                                             </td>
                                             <td className="border border-gray-400 px-2 py-1 text-center">
-                                                {isSubItem ? '' : (item.unit || item.rab_budget?.unit || '—')}
+                                                {isSubItem ? '' : (item.unit || item.rab_budget?.unit || '\u2014')}
                                             </td>
                                             {hasDurasi && (
                                                 <td className="border border-gray-400 px-2 py-1 text-center">
