@@ -18,36 +18,67 @@ class PurchaseOrderController extends Controller
     public function index(Request $request)
     {
         $perPage = min($request->query('per_page', 15), 100);
+        $search = $request->query('search');
 
-        return response()->json(PurchaseOrder::with(['project', 'items.rabBudget'])->latest()->paginate($perPage));
+        $query = PurchaseOrder::with(['project', 'items.rabBudget'])->latest();
+
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('po_number', 'like', "%{$search}%")
+                  ->orWhere('supplier_name', 'like', "%{$search}%")
+                  ->orWhereHas('project', fn($pq) => $pq->where('project_name', 'like', "%{$search}%"));
+            });
+        }
+
+        return response()->json($query->paginate($perPage));
     }
 
     public function store(Request $request)
     {
-        $validated = $request->validate([
+        $poLevel = $request->input('po_level', 'PROJECT');
+
+        // LAPANGAN can only create PROJECT level POs
+        $user = $request->user();
+        if ($poLevel === 'SUPPLIER' && $user->role && $user->role->role_name === 'LAPANGAN') {
+            return response()->json(['message' => 'Lapangan tidak bisa membuat PO Supplier.'], 403);
+        }
+
+        // Base validation (both levels)
+        $rules = [
             'project_id' => 'required|exists:projects,id',
             'po_number' => 'required|string|unique:purchase_orders,po_number',
             'date' => 'required|date',
-            'supplier_name' => 'required|string',
+            'po_level' => 'nullable|string|in:PROJECT,SUPPLIER',
             'po_type' => 'nullable|string|in:PURCHASE_ORDER,REVISI,ADDENDUM',
             'addendum_number' => 'nullable|integer|min:1',
-            'supplier_address' => 'nullable|string',
-            'supplier_phone' => 'nullable|string',
-            'supplier_contact_person' => 'nullable|string',
-            'project_location' => 'nullable|string',
-            'discount' => 'nullable|numeric|min:0',
-            'include_ppn' => 'nullable|boolean',
-            'catatan' => 'nullable|string',
-            'faktur_pajak_nama' => 'nullable|string',
-            'faktur_pajak_npwp' => 'nullable|string',
-            'faktur_pajak_alamat' => 'nullable|string',
-            'payment_terms' => 'nullable|string',
-            'items' => 'required|array',
+            'items' => 'required|array|min:1',
             'items.*.rab_budget_id' => 'required|exists:rab_budgets,id',
             'items.*.item_name' => 'required|string',
-            'items.*.qty' => 'required|numeric|min:0',
-            'items.*.unit_price' => 'required|numeric|min:0',
-        ]);
+            'items.*.qty' => 'required|numeric|min:0.01',
+        ];
+
+        if ($poLevel === 'SUPPLIER') {
+            // Supplier PO: supplier + pricing required
+            $rules['supplier_name'] = 'required|string';
+            $rules['supplier_address'] = 'nullable|string';
+            $rules['supplier_phone'] = 'nullable|string';
+            $rules['supplier_contact_person'] = 'nullable|string';
+            $rules['project_location'] = 'nullable|string';
+            $rules['discount'] = 'nullable|numeric|min:0';
+            $rules['include_ppn'] = 'nullable|boolean';
+            $rules['catatan'] = 'nullable|string';
+            $rules['faktur_pajak_nama'] = 'nullable|string';
+            $rules['faktur_pajak_npwp'] = 'nullable|string';
+            $rules['faktur_pajak_alamat'] = 'nullable|string';
+            $rules['payment_terms'] = 'nullable|string';
+            $rules['items.*.unit_price'] = 'required|numeric|min:0';
+        } else {
+            // Project PO: lapangan input, no pricing
+            $rules['supplier_name'] = 'nullable|string';
+            $rules['items.*.unit_price'] = 'nullable|numeric|min:0';
+        }
+
+        $validated = $request->validate($rules);
 
         $budgetIds = collect($validated['items'])->pluck('rab_budget_id')->unique();
         $matchingBudgetCount = RabBudget::query()
@@ -74,12 +105,12 @@ class PurchaseOrderController extends Controller
         }
 
         try {
-            $po = DB::transaction(function () use ($validated, $request) {
+            $po = DB::transaction(function () use ($validated, $request, $poLevel) {
                 $po = PurchaseOrder::create([
                     'project_id' => $validated['project_id'],
                     'po_number' => $validated['po_number'],
                     'date' => $validated['date'],
-                    'supplier_name' => $validated['supplier_name'],
+                    'supplier_name' => $validated['supplier_name'] ?? null,
                     'po_type' => $validated['po_type'] ?? 'PURCHASE_ORDER',
                     'addendum_number' => $validated['addendum_number'] ?? null,
                     'supplier_address' => $validated['supplier_address'] ?? null,
@@ -92,14 +123,16 @@ class PurchaseOrderController extends Controller
                     'faktur_pajak_nama' => $validated['faktur_pajak_nama'] ?? 'PT. SINAR CERAH SEMPURNA',
                     'faktur_pajak_npwp' => $validated['faktur_pajak_npwp'] ?? '002.652.984.2-331.000',
                     'faktur_pajak_alamat' => $validated['faktur_pajak_alamat'] ?? 'Karangrejo Barat No. 9 RT 002 RW 002, Tinjomoyo, Banyumanik, Semarang',
-                    'payment_terms' => $validated['payment_terms'],
+                    'payment_terms' => $validated['payment_terms'] ?? null,
                     'status' => 'DRAFT',
+                    'po_level' => $poLevel,
                     'created_by' => $request->user()->id,
                 ]);
 
                 $subtotal = 0;
                 foreach ($validated['items'] as $item) {
-                    $totalPrice = $item['qty'] * $item['unit_price'];
+                    $unitPrice = $poLevel === 'SUPPLIER' ? ($item['unit_price'] ?? 0) : 0;
+                    $totalPrice = $item['qty'] * $unitPrice;
                     $subtotal += $totalPrice;
 
                     PoItem::create([
@@ -107,20 +140,23 @@ class PurchaseOrderController extends Controller
                         'rab_budget_id' => $item['rab_budget_id'],
                         'item_name' => $item['item_name'],
                         'qty' => $item['qty'],
-                        'unit_price' => $item['unit_price'],
+                        'unit_price' => $unitPrice,
                         'total_price' => $totalPrice,
                     ]);
                 }
 
-                $discount = $validated['discount'] ?? 0;
-                $subtotalAfterDiscount = $subtotal - $discount;
-                $includePpn = $validated['include_ppn'] ?? true;
-                $tax = $includePpn ? $subtotalAfterDiscount * 0.11 : 0;
-                $po->update([
-                    'subtotal' => $subtotal,
-                    'tax_amount' => $tax,
-                    'total_amount' => $subtotalAfterDiscount + $tax,
-                ]);
+                // Only calculate pricing for supplier-level POs
+                if ($poLevel === 'SUPPLIER') {
+                    $discount = $validated['discount'] ?? 0;
+                    $subtotalAfterDiscount = $subtotal - $discount;
+                    $includePpn = $validated['include_ppn'] ?? true;
+                    $tax = $includePpn ? $subtotalAfterDiscount * 0.11 : 0;
+                    $po->update([
+                        'subtotal' => $subtotal,
+                        'tax_amount' => $tax,
+                        'total_amount' => $subtotalAfterDiscount + $tax,
+                    ]);
+                }
 
                 return $po;
             });
@@ -138,6 +174,58 @@ class PurchaseOrderController extends Controller
     {
         $po = PurchaseOrder::with(['items.rabBudget', 'project', 'attachments.uploader'])->findOrFail($id);
         return response()->json($po);
+    }
+
+    public function update(Request $request, $id)
+    {
+        $po = PurchaseOrder::findOrFail($id);
+        WorkflowState::require($po->status, ['DRAFT'], 'Hanya PO DRAFT yang bisa diedit.');
+
+        $validated = $request->validate([
+            'supplier_name' => 'nullable|string',
+            'supplier_address' => 'nullable|string',
+            'supplier_phone' => 'nullable|string',
+            'supplier_contact_person' => 'nullable|string',
+            'payment_terms' => 'nullable|string',
+            'include_ppn' => 'nullable|boolean',
+            'discount' => 'nullable|numeric|min:0',
+            'catatan' => 'nullable|string',
+            'items' => 'nullable|array',
+            'items.*.rab_budget_id' => 'required|exists:rab_budgets,id',
+            'items.*.item_name' => 'required|string',
+            'items.*.qty' => 'required|numeric|min:0.01',
+            'items.*.unit_price' => 'nullable|numeric|min:0',
+        ]);
+
+        DB::transaction(function () use ($po, $validated) {
+            $po->update(collect($validated)->except('items')->toArray());
+
+            if (isset($validated['items'])) {
+                $po->items()->delete();
+                foreach ($validated['items'] as $item) {
+                    $qty = $item['qty'];
+                    $unitPrice = $item['unit_price'] ?? 0;
+                    $po->items()->create([
+                        'rab_budget_id' => $item['rab_budget_id'],
+                        'item_name' => $item['item_name'],
+                        'qty' => $qty,
+                        'unit_price' => $unitPrice,
+                        'total_price' => $qty * $unitPrice,
+                    ]);
+                }
+                $subtotal = $po->items()->sum('total_price');
+                $discount = $po->discount ?? 0;
+                $afterDiscount = $subtotal - $discount;
+                $taxAmount = $po->include_ppn ? round($afterDiscount * 0.11) : 0;
+                $po->update([
+                    'subtotal' => $subtotal,
+                    'tax_amount' => $taxAmount,
+                    'total_amount' => $afterDiscount + $taxAmount,
+                ]);
+            }
+        });
+
+        return response()->json(['message' => 'PO berhasil diupdate.', 'data' => $po->load('items.rabBudget')]);
     }
 
     public function submit(Request $request, $id)
@@ -242,6 +330,32 @@ class PurchaseOrderController extends Controller
         $attachments = $po->attachments()->with('uploader')->latest()->get();
 
         return response()->json($attachments);
+    }
+
+    public function route(Request $request, $id)
+    {
+        $validated = $request->validate([
+            'routed_to' => 'required|in:PURCHASE_ORDER,SPK',
+        ]);
+
+        $po = DB::transaction(function () use ($request, $id, $validated) {
+            $po = PurchaseOrder::lockForUpdate()->findOrFail($id);
+            WorkflowState::require(
+                $po->status,
+                ['DRAFT'],
+                'PO harus berstatus DRAFT sebelum di-route.'
+            );
+            $po->update([
+                'routed_to' => $validated['routed_to'],
+                'routed_by' => $request->user()->id,
+                'routed_at' => now(),
+            ]);
+            $this->log($request, $po, 'ROUTE', "Routed to {$validated['routed_to']}");
+
+            return $po;
+        });
+
+        return response()->json(['message' => 'PO berhasil di-route.', 'data' => $po]);
     }
 
     private function log(Request $request, PurchaseOrder $po, string $action, ?string $notes = null): void

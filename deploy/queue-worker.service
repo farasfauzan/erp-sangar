@@ -1,0 +1,17 @@
+[Unit]
+Description=Laravel Queue Worker for ERP Konstruksi
+After=network.target
+
+[Service]
+User=www-data
+Group=www-data
+WorkingDirectory=/Users/narwanpratanta/final/erp-konstruksi
+ExecStart=/usr/bin/php artisan queue:work --sleep=3 --tries=3 --max-time=3600
+Restart=always
+RestartSec=5
+KillMode=process
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

@@ -504,9 +504,11 @@ export default function PurchaseOrderDetail() {
                                         </Button>
                                     </>
                                 )}
-                                <Button variant="outline" onClick={handlePrint}>
-                                    🖨️ Cetak
-                                </Button>
+                                {po.status === 'APPROVED' && (
+                                    <Button variant="outline" onClick={handlePrint}>
+                                        🖨️ Cetak
+                                    </Button>
+                                )}
                             </div>
                         }
                     />

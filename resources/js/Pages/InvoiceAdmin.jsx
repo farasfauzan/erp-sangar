@@ -32,9 +32,9 @@ export default function InvoiceAdmin() {
                 api.get('/api/pos', {}, { silent: true }),
                 api.get('/api/opnames', {}, { silent: true }),
             ]);
-            setInvoices(invData);
-            setPos(poData);
-            setOpnames(opnameData);
+            setInvoices(invData.data || invData);
+            setPos(poData.data || poData);
+            setOpnames(opnameData.data || opnameData);
         } catch (err) {
             // errors logged silently
         } finally {

@@ -15,16 +15,25 @@ export default function CreatePO() {
     const { data, setData, post, processing, errors, reset } = useForm({
         project_id: '',
         po_number: 'PO-' + Math.floor(Math.random() * 100000),
+        po_level: 'PROJECT',
         date: new Date().toISOString().split('T')[0],
         supplier_name: '',
+        supplier_address: '',
+        supplier_phone: '',
+        supplier_contact_person: '',
         payment_terms: '',
+        discount: 0,
+        include_ppn: true,
+        catatan: '',
         items: []
     });
+
+    const isProjectLevel = data.po_level === 'PROJECT';
 
     useEffect(() => {
         if (selectedProject) {
             api.get(`/api/projects/${selectedProject}`, {}, { silent: true }).then(res => {
-                setRabBudgets(res.rab_budgets || []);
+                setRabBudgets(res.data?.rab_budgets || res.rab_budgets || []);
             }).catch(() => {});
         }
     }, [selectedProject]);
@@ -40,45 +49,80 @@ export default function CreatePO() {
 
     const updateItem = (index, field, value) => {
         const newItems = [...data.items];
-        
+
         if (field === 'rab_budget_id') {
             const selectedRab = rabBudgets.find(r => r.id === parseInt(value));
             if (selectedRab) {
-                newItems[index].rab_budget_id = selectedRab.id;
-                newItems[index].item_name = selectedRab.description;
-                newItems[index].unit_price = selectedRab.unit_price;
-                newItems[index].total_price = newItems[index].qty * selectedRab.unit_price;
+                newItems[index] = {
+                    ...newItems[index],
+                    rab_budget_id: value,
+                    item_name: selectedRab.description,
+                    unit_price: isProjectLevel ? 0 : selectedRab.unit_price,
+                    total_price: isProjectLevel ? 0 : (newItems[index].qty * selectedRab.unit_price)
+                };
+            } else {
+                newItems[index] = { ...newItems[index], [field]: value };
             }
+        } else if (field === 'qty') {
+            newItems[index] = {
+                ...newItems[index],
+                qty: parseInt(value) || 0,
+                total_price: isProjectLevel ? 0 : ((parseInt(value) || 0) * newItems[index].unit_price)
+            };
+        } else if (field === 'unit_price') {
+            const price = parseFloat(value) || 0;
+            newItems[index] = {
+                ...newItems[index],
+                unit_price: price,
+                total_price: newItems[index].qty * price
+            };
         } else {
-            newItems[index][field] = value;
-            if (field === 'qty' || field === 'unit_price') {
-                newItems[index].total_price = newItems[index].qty * newItems[index].unit_price;
-            }
+            newItems[index] = { ...newItems[index], [field]: value };
         }
-        
+
         setData('items', newItems);
     };
 
     const removeItem = (index) => {
-        const newItems = [...data.items];
-        newItems.splice(index, 1);
-        setData('items', newItems);
+        setData('items', data.items.filter((_, i) => i !== index));
     };
 
-    const subtotal = data.items.reduce((acc, item) => acc + item.total_price, 0);
-    const tax = subtotal * 0.11;
-    const grandTotal = subtotal + tax;
+    const subtotal = data.items.reduce((sum, item) => sum + (isProjectLevel ? 0 : (item.total_price || 0)), 0);
+    const discountAmount = parseFloat(data.discount) || 0;
+    const afterDiscount = subtotal - discountAmount;
+    const tax = data.include_ppn ? afterDiscount * 0.11 : 0;
+    const grandTotal = afterDiscount + tax;
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
+        setMessage('');
+
         try {
-            const res = await api.post('/api/pos', data);
-            setMessage(res.message || 'PO berhasil dibuat.');
-            reset('supplier_name', 'items');
-            setData('po_number', 'PO-' + Math.floor(Math.random() * 100000));
+            const payload = { ...data };
+            if (isProjectLevel) {
+                // Strip pricing for project-level PO
+                delete payload.supplier_name;
+                delete payload.supplier_address;
+                delete payload.supplier_phone;
+                delete payload.supplier_contact_person;
+                delete payload.payment_terms;
+                delete payload.discount;
+                delete payload.include_ppn;
+                delete payload.catatan;
+                payload.items = payload.items.map(item => ({
+                    rab_budget_id: item.rab_budget_id,
+                    item_name: item.item_name,
+                    qty: item.qty,
+                }));
+            }
+
+            await api.post('/api/pos', payload);
+            setMessage('PO berhasil dibuat!');
+            reset();
+            setData('items', []);
         } catch (err) {
-            setMessage(err.response?.data?.message || 'Gagal membuat PO.');
+            setMessage('Gagal membuat PO. Periksa kembali data Anda.');
         } finally {
             setLoading(false);
         }
@@ -86,23 +130,64 @@ export default function CreatePO() {
 
     return (
         <AuthenticatedLayout
-            header={<h2 className="text-xl font-semibold leading-tight text-gray-800">Buat Purchase Order Baru</h2>}
+            header={
+                <h2 className="text-xl font-semibold leading-tight text-gray-800">
+                    Buat Purchase Order Baru
+                </h2>
+            }
         >
             <Head title="Buat PO" />
 
             <div className="py-12">
-                <div className="mx-auto max-w-7xl sm:px-6 lg:px-8">
+                <div className="mx-auto max-w-4xl sm:px-6 lg:px-8">
                     <div className="overflow-hidden bg-white shadow-sm sm:rounded-lg">
                         <div className="p-6 text-gray-900">
-                            
                             {message && (
-                                <div className="mb-4 p-4 bg-green-100 text-green-700 rounded">
+                                <div className={`p-4 mb-4 rounded ${message.includes('berhasil') ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                                     {message}
                                 </div>
                             )}
 
                             <form onSubmit={handleSubmit}>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                                {/* PO Level Selector */}
+                                <div className="mb-6 p-4 bg-gray-50 rounded-lg border">
+                                    <label className="block text-sm font-medium text-gray-700 mb-3">Tipe PO</label>
+                                    <div className="flex gap-4">
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setData('po_level', 'PROJECT');
+                                                setData('items', []);
+                                            }}
+                                            className={`flex-1 p-4 rounded-lg border-2 text-center transition-colors ${
+                                                isProjectLevel
+                                                    ? 'border-blue-500 bg-blue-50 text-blue-700'
+                                                    : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
+                                            }`}
+                                        >
+                                            <div className="text-lg font-bold">PO Proyek</div>
+                                            <div className="text-sm mt-1">Input lapangan — item + qty saja, tanpa harga</div>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setData('po_level', 'SUPPLIER');
+                                                setData('items', []);
+                                            }}
+                                            className={`flex-1 p-4 rounded-lg border-2 text-center transition-colors ${
+                                                !isProjectLevel
+                                                    ? 'border-purple-500 bg-purple-50 text-purple-700'
+                                                    : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
+                                            }`}
+                                        >
+                                            <div className="text-lg font-bold">PO Supplier</div>
+                                            <div className="text-sm mt-1">Input purchasing — lengkap dengan harga + supplier</div>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Common Fields */}
+                                <div className="grid grid-cols-2 gap-4 mb-6">
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700">Proyek</label>
                                         <select 
@@ -122,90 +207,170 @@ export default function CreatePO() {
                                         <input type="text" value={data.po_number} onChange={e => setData('po_number', e.target.value)} required className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700">Supplier</label>
-                                        <input type="text" value={data.supplier_name} onChange={e => setData('supplier_name', e.target.value)} required className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
-                                    </div>
-                                    <div>
                                         <label className="block text-sm font-medium text-gray-700">Tanggal</label>
                                         <input type="date" value={data.date} onChange={e => setData('date', e.target.value)} required className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
                                     </div>
                                 </div>
 
-                                <hr className="my-6" />
+                                {/* Supplier Fields — only for SUPPLIER level */}
+                                {!isProjectLevel && (
+                                    <div className="mb-6 p-4 bg-purple-50 rounded-lg border border-purple-200">
+                                        <h4 className="text-sm font-bold text-purple-700 mb-3">Informasi Supplier</h4>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700">Nama Supplier *</label>
+                                                <input type="text" value={data.supplier_name} onChange={e => setData('supplier_name', e.target.value)} required={!isProjectLevel} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700">Kontak Person</label>
+                                                <input type="text" value={data.supplier_contact_person} onChange={e => setData('supplier_contact_person', e.target.value)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700">Alamat Supplier</label>
+                                                <input type="text" value={data.supplier_address} onChange={e => setData('supplier_address', e.target.value)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700">Telepon Supplier</label>
+                                                <input type="text" value={data.supplier_phone} onChange={e => setData('supplier_phone', e.target.value)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700">Termin Pembayaran</label>
+                                                <input type="text" value={data.payment_terms} onChange={e => setData('payment_terms', e.target.value)} placeholder="Contoh: 30 hari" className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
 
-                                <div className="flex justify-between items-center mb-4">
-                                    <h4 className="text-lg font-bold">Item Barang</h4>
-                                    <button type="button" onClick={addItem} className="bg-blue-600 text-white px-3 py-1 rounded shadow hover:bg-blue-700">
-                                        + Tambah Baris
-                                    </button>
-                                </div>
+                                {/* Items */}
+                                <div className="mb-6">
+                                    <div className="flex justify-between items-center mb-3">
+                                        <h4 className="text-md font-bold">Item PO</h4>
+                                        <button type="button" onClick={addItem} className="bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-600">
+                                            + Tambah Item
+                                        </button>
+                                    </div>
 
-                                <div className="overflow-x-auto mb-6">
-                                    <table className="min-w-full divide-y divide-gray-200 border">
-                                        <thead className="bg-gray-50">
-                                            <tr>
-                                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Item RAB</th>
-                                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Qty</th>
-                                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Harga Satuan</th>
-                                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Total</th>
-                                                <th className="px-4 py-2"></th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="bg-white divide-y divide-gray-200">
+                                    {data.items.length === 0 ? (
+                                        <p className="text-gray-500 text-sm">Belum ada item. Klik "Tambah Item" untuk menambah.</p>
+                                    ) : (
+                                        <div className="space-y-3">
                                             {data.items.map((item, index) => (
-                                                <tr key={index}>
-                                                    <td className="p-2">
-                                                        <select 
-                                                            required
-                                                            value={item.rab_budget_id}
-                                                            onChange={e => updateItem(index, 'rab_budget_id', e.target.value)}
-                                                            className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                                                        >
-                                                            <option value="">Pilih Item...</option>
-                                                            {rabBudgets.map(rab => (
-                                                                <option key={rab.id} value={rab.id}>{rab.code_item} - {rab.description} (Vol: {rab.volume} {rab.unit})</option>
-                                                            ))}
-                                                        </select>
-                                                    </td>
-                                                    <td className="p-2">
-                                                        <input type="number" step="0.01" min="0" required value={item.qty} onChange={e => updateItem(index, 'qty', e.target.value)} className="block w-full rounded-md border-gray-300 shadow-sm sm:text-sm" />
-                                                    </td>
-                                                    <td className="p-2">
-                                                        <input type="number" step="0.01" min="0" required value={item.unit_price} onChange={e => updateItem(index, 'unit_price', e.target.value)} className="block w-full rounded-md border-gray-300 shadow-sm sm:text-sm" />
-                                                    </td>
-                                                    <td className="p-2 align-middle text-sm font-medium">
-                                                        Rp {item.total_price.toLocaleString('id-ID')}
-                                                    </td>
-                                                    <td className="p-2 text-center">
-                                                        <button type="button" onClick={() => removeItem(index)} className="text-red-600 hover:text-red-900 font-bold">X</button>
-                                                    </td>
-                                                </tr>
+                                                <div key={index} className="p-4 bg-gray-50 rounded-lg border">
+                                                    <div className={`grid gap-3 ${isProjectLevel ? 'grid-cols-3' : 'grid-cols-5'}`}>
+                                                        <div>
+                                                            <label className="block text-xs font-medium text-gray-500">Item RAB</label>
+                                                            <select
+                                                                value={item.rab_budget_id}
+                                                                onChange={e => updateItem(index, 'rab_budget_id', e.target.value)}
+                                                                required
+                                                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                                                            >
+                                                                <option value="">-- Pilih --</option>
+                                                                {rabBudgets.map(rab => (
+                                                                    <option key={rab.id} value={rab.id}>{rab.code_item} - {rab.description}</option>
+                                                                ))}
+                                                            </select>
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-xs font-medium text-gray-500">Qty</label>
+                                                            <input
+                                                                type="number"
+                                                                min="1"
+                                                                value={item.qty}
+                                                                onChange={e => updateItem(index, 'qty', e.target.value)}
+                                                                required
+                                                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                                                            />
+                                                        </div>
+                                                        {!isProjectLevel && (
+                                                            <>
+                                                                <div>
+                                                                    <label className="block text-xs font-medium text-gray-500">Harga Satuan</label>
+                                                                    <input
+                                                                        type="number"
+                                                                        min="0"
+                                                                        value={item.unit_price}
+                                                                        onChange={e => updateItem(index, 'unit_price', e.target.value)}
+                                                                        required
+                                                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                                                                    />
+                                                                </div>
+                                                                <div>
+                                                                    <label className="block text-xs font-medium text-gray-500">Total</label>
+                                                                    <div className="mt-2 text-sm font-medium">Rp {(item.total_price || 0).toLocaleString('id-ID')}</div>
+                                                                </div>
+                                                            </>
+                                                        )}
+                                                        <div className="flex items-end">
+                                                            <button type="button" onClick={() => removeItem(index)} className="text-red-500 hover:text-red-700 text-sm">
+                                                                Hapus
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
                                             ))}
-                                            {data.items.length === 0 && (
-                                                <tr><td colSpan="5" className="p-4 text-center text-sm text-gray-500">Belum ada item ditambahkan.</td></tr>
-                                            )}
-                                        </tbody>
-                                    </table>
+                                        </div>
+                                    )}
                                 </div>
 
-                                <div className="flex justify-end mb-6">
-                                    <div className="w-64">
-                                        <div className="flex justify-between py-1">
-                                            <span className="text-sm font-medium">Subtotal:</span>
-                                            <span className="text-sm font-bold">Rp {subtotal.toLocaleString('id-ID')}</span>
+                                {/* Pricing Summary — only for SUPPLIER level */}
+                                {!isProjectLevel && data.items.length > 0 && (
+                                    <div className="mb-6 p-4 bg-indigo-50 rounded-lg border border-indigo-200">
+                                        <h4 className="text-sm font-bold text-indigo-700 mb-3">Ringkasan Harga</h4>
+                                        <div className="grid grid-cols-2 gap-4 mb-3">
+                                            <div>
+                                                <label className="block text-xs font-medium text-gray-500">Diskon (Rp)</label>
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    value={data.discount}
+                                                    onChange={e => setData('discount', e.target.value)}
+                                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                                                />
+                                            </div>
+                                            <div className="flex items-center pt-5">
+                                                <label className="flex items-center gap-2">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={data.include_ppn}
+                                                        onChange={e => setData('include_ppn', e.target.checked)}
+                                                        className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                                    />
+                                                    <span className="text-sm text-gray-700">Termasuk PPN (11%)</span>
+                                                </label>
+                                            </div>
                                         </div>
-                                        <div className="flex justify-between py-1 border-b">
-                                            <span className="text-sm font-medium">PPN 11%:</span>
-                                            <span className="text-sm font-bold text-gray-600">Rp {tax.toLocaleString('id-ID')}</span>
+                                        <div className="flex justify-between py-1 text-sm">
+                                            <span>Subtotal:</span>
+                                            <span>Rp {subtotal.toLocaleString('id-ID')}</span>
                                         </div>
-                                        <div className="flex justify-between py-2">
+                                        <div className="flex justify-between py-1 text-sm">
+                                            <span>Diskon:</span>
+                                            <span>- Rp {discountAmount.toLocaleString('id-ID')}</span>
+                                        </div>
+                                        <div className="flex justify-between py-1 text-sm">
+                                            <span>PPN:</span>
+                                            <span>Rp {tax.toLocaleString('id-ID')}</span>
+                                        </div>
+                                        <div className="flex justify-between py-2 border-t mt-2">
                                             <span className="text-base font-bold">Grand Total:</span>
                                             <span className="text-base font-bold text-indigo-700">Rp {grandTotal.toLocaleString('id-ID')}</span>
                                         </div>
                                     </div>
-                                </div>
+                                )}
 
-                                <div className="flex justify-end">
+                                {/* Project Level Summary */}
+                                {isProjectLevel && data.items.length > 0 && (
+                                    <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                                        <h4 className="text-sm font-bold text-blue-700">Ringkasan PO Proyek</h4>
+                                        <p className="text-sm text-gray-600 mt-1">Total {data.items.length} item — PO ini akan diteruskan ke purchasing untuk pengisian harga supplier.</p>
+                                    </div>
+                                )}
+
+                                <div className="flex justify-between">
+                                    <a href={route("po")} className="bg-gray-500 text-white px-6 py-2 rounded shadow hover:bg-gray-600">
+                                        Kembali
+                                    </a>
                                     <button 
                                         type="submit" 
                                         disabled={loading || data.items.length === 0}

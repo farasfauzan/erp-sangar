@@ -4,11 +4,14 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\ApprovalLog;
+use App\Models\ChartOfAccount;
 use App\Models\FundRequest;
+use App\Models\GeneralLedger;
 use App\Models\Transaction;
 use App\Support\WorkflowState;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
 class FundRequestController extends Controller
@@ -17,7 +20,7 @@ class FundRequestController extends Controller
     {
         $perPage = min($request->query('per_page', 15), 100);
 
-        return response()->json(FundRequest::with(['project', 'transactions'])->latest()->paginate($perPage));
+        return response()->json(FundRequest::with(['project', 'transactions', 'fundReceipts'])->latest()->paginate($perPage));
     }
 
     public function store(Request $request)
@@ -123,6 +126,9 @@ class FundRequestController extends Controller
             ]);
             $this->log($request, $fundRequest, 'PAYMENT');
 
+            // Auto GL posting: Debit Biaya Proyek, Credit Kas/Bank
+            $this->postGlJournal($fundRequest, $validated['payment_date'] ?? now()->toDateString());
+
             return $fundRequest;
         });
 
@@ -131,7 +137,13 @@ class FundRequestController extends Controller
 
     public function submitLpj(Request $request, $id)
     {
-        $validated = $request->validate(['lpj_notes' => 'nullable|string']);
+        $validated = $request->validate([
+            'lpj_notes' => 'nullable|string',
+            'lpj_items' => 'nullable|array',
+            'lpj_items.*.description' => 'required|string',
+            'lpj_items.*.amount' => 'required|numeric|min:0',
+            'lpj_items.*.category' => 'nullable|string',
+        ]);
         $fundRequest = FundRequest::findOrFail($id);
         WorkflowState::require(
             $fundRequest->status,
@@ -141,6 +153,7 @@ class FundRequestController extends Controller
         $fundRequest->update([
             'status' => 'LPJ_SUBMITTED',
             'lpj_notes' => $validated['lpj_notes'] ?? null,
+            'lpj_items' => $validated['lpj_items'] ?? null,
             'lpj_submitted_at' => now(),
         ]);
         $this->log($request, $fundRequest, 'LPJ_SUBMIT');
@@ -160,6 +173,68 @@ class FundRequestController extends Controller
         $this->log($request, $fundRequest, 'LPJ_VERIFY');
 
         return response()->json(['message' => 'LPJ diverifikasi.', 'data' => $fundRequest]);
+    }
+
+    /**
+     * Post double-entry journal for fund request payment.
+     * Debit: Biaya Operasional Proyek (5100) — expense recognized
+     * Credit: Kas/Bank (1100) — cash outflow
+     */
+    private function postGlJournal(FundRequest $fundRequest, string $date): void
+    {
+        $expenseAccount = '5100'; // Biaya Operasional Proyek
+        $cashAccount = '1100';    // Kas/Bank
+
+        $expenseExists = ChartOfAccount::where('code', $expenseAccount)->exists();
+        $cashExists = ChartOfAccount::where('code', $cashAccount)->exists();
+
+        if (! $expenseExists || ! $cashExists) {
+            // Skip GL posting if COA not configured — log warning
+            return;
+        }
+
+        $journalNumber = $this->generateJournalNumber($date);
+        $amount = (float) $fundRequest->amount;
+        $description = "Pembayaran permohonan dana {$fundRequest->request_number}";
+
+        GeneralLedger::create([
+            'journal_number' => $journalNumber,
+            'transaction_date' => $date,
+            'account_code' => $expenseAccount,
+            'description' => $description,
+            'debit' => $amount,
+            'credit' => 0,
+            'reference_type' => FundRequest::class,
+            'reference_id' => $fundRequest->id,
+            'project_id' => $fundRequest->project_id,
+            'created_by' => Auth::id(),
+        ]);
+
+        GeneralLedger::create([
+            'journal_number' => $journalNumber,
+            'transaction_date' => $date,
+            'account_code' => $cashAccount,
+            'description' => $description,
+            'debit' => 0,
+            'credit' => $amount,
+            'reference_type' => FundRequest::class,
+            'reference_id' => $fundRequest->id,
+            'project_id' => $fundRequest->project_id,
+            'created_by' => Auth::id(),
+        ]);
+    }
+
+    private function generateJournalNumber(string $date): string
+    {
+        $datePart = date('Ymd', strtotime($date));
+        $prefix = "JRN-{$datePart}-";
+        $last = GeneralLedger::where('journal_number', 'like', $prefix . '%')
+            ->orderByDesc('journal_number')
+            ->value('journal_number');
+
+        $seq = $last ? (int) substr($last, strlen($prefix)) + 1 : 1;
+
+        return $prefix . str_pad($seq, 4, '0', STR_PAD_LEFT);
     }
 
     private function log(Request $request, FundRequest $fundRequest, string $action): void

@@ -350,7 +350,7 @@ class RabBudgetController extends Controller
                 'status' => RabImportJob::STATUS_PENDING,
             ]);
 
-            dispatch_sync(new ValidateRabImportJob($job->id));
+            ValidateRabImportJob::dispatch($job->id);
 
             return response()->json([
                 'success' => true,
@@ -429,6 +429,39 @@ class RabBudgetController extends Controller
             'success' => true,
             'data' => $query->orderBy('id')->paginate($request->get('per_page', 50)),
         ]);
+    }
+
+    /**
+     * Export RAB items to Excel using fast-excel.
+     */
+    public function export(Request $request)
+    {
+        $query = RabBudget::with('project');
+        $projectId = $request->route('projectId') ?? $request->get('project_id');
+
+        if ($projectId) {
+            $query->where('project_id', $projectId);
+            $latestVersion = RabBudget::where('project_id', $projectId)->max('version') ?? 1;
+            $query->where('version', $latestVersion);
+        }
+
+        $data = $query->orderBy('id')->get()->map(function ($item) {
+            return [
+                'Kode' => $item->code_item,
+                'Uraian' => $item->description,
+                'Satuan' => $item->unit,
+                'Volume' => $item->volume,
+                'Harga Satuan' => $item->unit_price,
+                'Jumlah' => $item->total_price,
+                'Kategori' => $item->category,
+                'Status' => $item->status,
+            ];
+        });
+
+        $filename = 'RAB-' . ($projectId ?? 'all') . '.xlsx';
+
+        return (new \Rap2hpoutre\FastExcel\FastExcel($data))
+            ->download($filename);
     }
 
     public function show($id)

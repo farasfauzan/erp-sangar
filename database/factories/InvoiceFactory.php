@@ -23,6 +23,7 @@ class InvoiceFactory extends Factory
             'due_date'         => fake()->dateTimeBetween('+30 days', '+60 days')->format('Y-m-d'),
             'amount'           => fake()->numberBetween(50000, 10000000),
             'status'           => 'PENDING_ENGINEER',
+            'cashflow_status'  => 'PENDING',
         ];
     }
 

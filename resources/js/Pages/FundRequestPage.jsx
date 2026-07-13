@@ -26,7 +26,7 @@ export default function FundRequestPage() {
         setLoading(true);
         try {
             const fundData = await api.get('/api/fund-requests', {}, { silent: true });
-            setFunds(fundData);
+            setFunds(fundData.data || fundData);
             setForm((current) => ({ ...current, project_id: current.project_id || projects[0]?.id || '' }));
         } catch (err) {
             // error handled silently

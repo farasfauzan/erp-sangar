@@ -10,7 +10,8 @@ class Invoice extends Model
     use HasFactory;
     protected $fillable = [
         'invoiceable_type', 'invoiceable_id', 'invoice_number', 
-        'opname_id', 'invoice_date', 'due_date', 'amount', 'status'
+        'opname_id', 'invoice_date', 'due_date', 'amount', 'status',
+        'cashflow_status'
     ];
 
     public function invoiceable()

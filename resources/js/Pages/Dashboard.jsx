@@ -2,7 +2,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import ErrorBoundary from '@/Components/ErrorBoundary';
 import { Head } from '@inertiajs/react';
 import { useState } from 'react';
-import { Modal, Button } from '@/Components/ui';
+import { Modal, Button, useToast } from '@/Components/ui';
 import ExecutiveSummary from '@/Pages/Dashboard/ExecutiveSummary';
 import FinancialChart from '@/Pages/Dashboard/FinancialChart';
 import ProjectsList from '@/Pages/Dashboard/ProjectsList';

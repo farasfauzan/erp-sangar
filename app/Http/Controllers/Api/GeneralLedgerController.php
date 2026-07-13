@@ -3,13 +3,14 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\ChartOfAccount;
 use App\Models\GeneralLedger;
+use App\Models\ChartOfAccount;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class GeneralLedgerController extends Controller
 {
@@ -171,6 +172,55 @@ class GeneralLedgerController extends Controller
             'total_debit' => $totalDebit,
             'total_credit' => $totalCredit,
             'is_balanced' => bccomp(number_format($totalDebit, 2, '.', ''), number_format($totalCredit, 2, '.', ''), 2) === 0,
+        ]);
+    }
+
+    /**
+     * Export journal entries as CSV.
+     */
+    public function export(Request $request): StreamedResponse
+    {
+        $query = GeneralLedger::query()
+            ->with('chartOfAccount')
+            ->orderBy('transaction_date')
+            ->orderBy('journal_number');
+
+        if ($request->filled('date_from')) {
+            $query->where('transaction_date', '>=', $request->input('date_from'));
+        }
+
+        if ($request->filled('date_to')) {
+            $query->where('transaction_date', '<=', $request->input('date_to'));
+        }
+
+        if ($request->filled('account_code')) {
+            $query->where('account_code', $request->input('account_code'));
+        }
+
+        $filename = 'general-ledger-' . date('YmdHis') . '.csv';
+
+        return response()->streamDownload(function () use ($query) {
+            $out = fopen('php://output', 'w');
+            fputcsv($out, ['Tanggal', 'No. Jurnal', 'Kode Akun', 'Nama Akun', 'Deskripsi', 'Debet', 'Kredit', 'Referensi']);
+
+            $query->chunk(500, function ($entries) use ($out) {
+                foreach ($entries as $e) {
+                    fputcsv($out, [
+                        $e->transaction_date->format('Y-m-d'),
+                        $e->journal_number,
+                        $e->account_code,
+                        $e->chartOfAccount?->name,
+                        $e->description,
+                        number_format($e->debit, 2, '.', ''),
+                        number_format($e->credit, 2, '.', ''),
+                        $e->reference_type ? ($e->reference_type . '#' . $e->reference_id) : '',
+                    ]);
+                }
+            });
+
+            fclose($out);
+        }, $filename, [
+            'Content-Type' => 'text/csv',
         ]);
     }
 

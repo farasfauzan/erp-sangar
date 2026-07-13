@@ -28,6 +28,8 @@ class OpnameFactory extends Factory
             'opname_number' => 'OPN-' . str_pad(++self::$counter, 5, '0', STR_PAD_LEFT),
             'date' => fake()->dateTimeBetween('-3 months', 'now'),
             'progress_percentage' => fake()->randomFloat(2, 5, 100),
+            'progress_pct' => fake()->numberBetween(0, 100),
+            'progress_items' => null,
             'amount' => fake()->randomFloat(2, 1000000, 500000000),
             'status' => fake()->randomElement(['PENDING', 'APPROVED']),
             'approved_by' => null,

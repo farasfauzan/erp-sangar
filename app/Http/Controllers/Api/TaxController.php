@@ -4,7 +4,9 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Tax;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class TaxController extends Controller
 {
@@ -143,6 +145,96 @@ class TaxController extends Controller
                     'type' => $tax->type,
                 ],
             ]),
+        ]);
+    }
+
+    /**
+     * Submit restitusi request for a tax.
+     */
+    public function submitRestitusi(Request $request, int $id): JsonResponse
+    {
+        $tax = Tax::findOrFail($id);
+
+        $validated = $request->validate([
+            'restitusi_amount' => 'required|numeric|min:0.01',
+            'restitusi_notes' => 'nullable|string|max:1000',
+        ]);
+
+        if ($tax->restitusi_status !== 'none') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Restitusi sudah pernah diajukan untuk pajak ini.',
+            ], 422);
+        }
+
+        $tax->update([
+            'restitusi_status' => 'pending',
+            'restitusi_amount' => $validated['restitusi_amount'],
+            'restitusi_notes' => $validated['restitusi_notes'] ?? null,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Restitusi berhasil diajukan.',
+            'data' => $tax->fresh(),
+        ]);
+    }
+
+    /**
+     * Approve or reject a pending restitusi.
+     */
+    public function approveRestitusi(Request $request, int $id): JsonResponse
+    {
+        $tax = Tax::findOrFail($id);
+
+        $validated = $request->validate([
+            'action' => 'required|in:approve,reject',
+            'restitusi_notes' => 'nullable|string|max:1000',
+        ]);
+
+        if ($tax->restitusi_status !== 'pending') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Hanya restitusi dengan status pending yang bisa diproses.',
+            ], 422);
+        }
+
+        $newStatus = $validated['action'] === 'approve' ? 'approved' : 'rejected';
+
+        $tax->update([
+            'restitusi_status' => $newStatus,
+            'restitusi_notes' => $validated['restitusi_notes'] ?? $tax->restitusi_notes,
+            'restitusi_approved_at' => now(),
+            'restitusi_approved_by' => Auth::id(),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Restitusi ' . ($newStatus === 'approved' ? 'disetujui' : 'ditolak') . '.',
+            'data' => $tax->fresh(),
+        ]);
+    }
+
+    /**
+     * Mark restitusi as paid.
+     */
+    public function payRestitusi(int $id): JsonResponse
+    {
+        $tax = Tax::findOrFail($id);
+
+        if ($tax->restitusi_status !== 'approved') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Hanya restitusi yang sudah disetujui yang bisa ditandai lunas.',
+            ], 422);
+        }
+
+        $tax->update(['restitusi_status' => 'paid']);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Restitusi ditandai lunas.',
+            'data' => $tax->fresh(),
         ]);
     }
 }

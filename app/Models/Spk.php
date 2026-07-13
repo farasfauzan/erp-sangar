@@ -8,7 +8,15 @@ use Illuminate\Database\Eloquent\Model;
 class Spk extends Model
 {
     use HasFactory;
-    protected $fillable = ['project_id', 'spk_number', 'subcon_name', 'subtotal', 'tax_amount', 'total_amount', 'payment_terms', 'status', 'created_by', 'approved_by'];
+    protected $fillable = ['project_id', 'spk_number', 'spk_type', 'subcon_name', 'subtotal', 'tax_amount', 'total_amount', 'include_ppn', 'payment_terms', 'jadwal_kirim', 'status', 'created_by', 'approved_by'];
+
+    protected $casts = [
+        'include_ppn' => 'boolean',
+        'jadwal_kirim' => 'date',
+        'subtotal' => 'decimal:2',
+        'tax_amount' => 'decimal:2',
+        'total_amount' => 'decimal:2',
+    ];
 
     public function project()
     {

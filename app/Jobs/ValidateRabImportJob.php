@@ -39,7 +39,7 @@ class ValidateRabImportJob implements ShouldQueue
             if (empty($validSheets)) {
                 $job->update([
                     'status' => RabImportJob::STATUS_FAILED,
-                    'errors' => ['Header tidak ditemukan dalam file Excel (kolom wajib: Uraian Pekerjaan, Volume, Harga Satuan).'],
+                    'errors' => ['Header tidak ditemukan dalam file Excel. Pastikan baris header mengandung kata kunci seperti: uraian, deskripsi, volume, harga, satuan, jumlah, dll.'],
                 ]);
                 return;
             }
@@ -51,10 +51,10 @@ class ValidateRabImportJob implements ShouldQueue
 
             foreach ($validSheets as $sheetInfo) {
                 if ($colError = $this->columnMapError($sheetInfo['colMap'])) {
-                    $errors[] = "Sheet '{$sheetInfo['sheetName']}': {$colError}";
-                    continue;
+                    continue; // Skip sheets without required columns
                 }
 
+                \Illuminate\Support\Facades\Log::info('Import using sheet: ' . $sheetInfo['sheetName'] . ' colMap: ' . json_encode($sheetInfo['colMap']));
                 $currentCategory = $sheetInfo['sheetName']; // default category = sheet name
                 $currentSectionCode = '0101';
                 $currentResourceCategory = null;
@@ -145,6 +145,7 @@ class ValidateRabImportJob implements ShouldQueue
                     $newItems[] = $normalized;
                     $rowCount++;
                 }
+                break; // Only process the first valid sheet
             }
 
             if ($errors !== []) {

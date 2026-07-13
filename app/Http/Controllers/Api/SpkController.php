@@ -21,25 +21,32 @@ class SpkController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'project_id' => 'required|exists:projects,id',
-            'spk_number' => 'required|string|unique:spks,spk_number',
-            'subcon_name' => 'required|string',
-            'subtotal' => 'required|numeric',
+            'project_id'    => 'required|exists:projects,id',
+            'spk_number'    => 'required|string|unique:spks,spk_number',
+            'spk_type'      => 'required|string|in:SUBKON,MANDOR',
+            'subcon_name'   => 'required|string',
+            'subtotal'      => 'required|numeric|min:0',
+            'include_ppn'   => 'boolean',
             'payment_terms' => 'nullable|string',
+            'jadwal_kirim'  => 'nullable|date',
         ]);
 
-        $tax = $validated['subtotal'] * 0.11;
+        $includePpn = $validated['include_ppn'] ?? true;
+        $tax = $includePpn ? $validated['subtotal'] * 0.11 : 0;
 
         $spk = Spk::create([
-            'project_id' => $validated['project_id'],
-            'spk_number' => $validated['spk_number'],
-            'subcon_name' => $validated['subcon_name'],
-            'subtotal' => $validated['subtotal'],
-            'tax_amount' => $tax,
-            'total_amount' => $validated['subtotal'] + $tax,
-            'payment_terms' => $validated['payment_terms'],
-            'status' => 'DRAFT',
-            'created_by' => $request->user()->id,
+            'project_id'    => $validated['project_id'],
+            'spk_number'    => $validated['spk_number'],
+            'spk_type'      => $validated['spk_type'],
+            'subcon_name'   => $validated['subcon_name'],
+            'subtotal'      => $validated['subtotal'],
+            'tax_amount'    => $tax,
+            'total_amount'  => $validated['subtotal'] + $tax,
+            'include_ppn'   => $includePpn,
+            'payment_terms' => $validated['payment_terms'] ?? null,
+            'jadwal_kirim'  => $validated['jadwal_kirim'] ?? null,
+            'status'        => 'DRAFT',
+            'created_by'    => $request->user()->id,
         ]);
 
         return response()->json([

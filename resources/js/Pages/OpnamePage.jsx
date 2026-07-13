@@ -29,8 +29,8 @@ export default function OpnamePage() {
                 api.get('/api/opnames', {}, { silent: true }),
                 api.get('/api/spks', {}, { silent: true }),
             ]);
-            setOpnames(opnData);
-            setSpks(spkData);
+            setOpnames(opnData.data || opnData);
+            setSpks(spkData.data || spkData);
         } catch (err) {
             // errors logged silently
         } finally {

@@ -24,7 +24,7 @@ class ProjectController extends Controller
     public function show($id)
     {
         $project = Project::with(['rabBudgets' => function ($q) {
-            $q->select('id', 'project_id', 'code_item', 'description', 'total_price', 'category', 'status', 'version')
+            $q->select('id', 'project_id', 'code_item', 'description', 'volume', 'unit_price', 'total_price', 'category', 'status', 'version')
                 ->where('status', '!=', 'ARCHIVED')
                 ->latest('version');
         }])->findOrFail($id);
@@ -69,6 +69,17 @@ class ProjectController extends Controller
             'success' => true,
             'message' => 'Proyek berhasil diperbarui.',
             'data' => $project->fresh(),
+        ]);
+    }
+
+    public function destroy($id)
+    {
+        $project = Project::findOrFail($id);
+        $project->delete();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Proyek berhasil dihapus.',
         ]);
     }
 }

@@ -34,6 +34,7 @@ class SpkControllerTest extends TestCase
         $this->postJson('/api/spks', [
             'project_id'    => $project->id,
             'spk_number'    => 'SPK-TEST-001',
+            'spk_type'      => 'SUBKON',
             'subcon_name'   => 'CV Bangun Jaya',
             'subtotal'      => 200000,
             'payment_terms' => 'Berdasarkan opname',
@@ -56,6 +57,7 @@ class SpkControllerTest extends TestCase
         $this->postJson('/api/spks', [
             'project_id'  => $project->id,
             'spk_number'  => 'SPK-TAX-001',
+            'spk_type'    => 'SUBKON',
             'subcon_name' => 'PT Subcon',
             'subtotal'    => 100000,
         ])
@@ -75,7 +77,7 @@ class SpkControllerTest extends TestCase
 
         $this->postJson('/api/spks', [])
             ->assertUnprocessable()
-            ->assertJsonValidationErrors(['project_id', 'spk_number', 'subcon_name', 'subtotal']);
+            ->assertJsonValidationErrors(['project_id', 'spk_number', 'spk_type', 'subcon_name', 'subtotal']);
     }
 
     public function test_store_rejects_duplicate_spk_number(): void
@@ -87,6 +89,7 @@ class SpkControllerTest extends TestCase
         $this->postJson('/api/spks', [
             'project_id'  => $project->id,
             'spk_number'  => 'SPK-DUPE-001',
+            'spk_type'    => 'SUBKON',
             'subcon_name' => 'CV Test',
             'subtotal'    => 50000,
         ])
@@ -101,6 +104,7 @@ class SpkControllerTest extends TestCase
         $this->postJson('/api/spks', [
             'project_id'  => 1,
             'spk_number'  => 'SPK-X',
+            'spk_type'    => 'SUBKON',
             'subcon_name' => 'CV Test',
             'subtotal'    => 50000,
         ])
@@ -157,5 +161,41 @@ class SpkControllerTest extends TestCase
 
         $this->putJson("/api/spks/{$spk->id}/approve")
             ->assertForbidden();
+    }
+
+    public function test_store_mandor_type(): void
+    {
+        $this->actingAsRole('PURCHASING_LEGAL');
+        $project = Project::factory()->create();
+
+        $this->postJson('/api/spks', [
+            'project_id'  => $project->id,
+            'spk_number'  => 'SPK-MANDOR-001',
+            'spk_type'    => 'MANDOR',
+            'subcon_name' => 'Pak Budi',
+            'subtotal'    => 50000000,
+        ])
+            ->assertCreated()
+            ->assertJsonPath('data.spk_type', 'MANDOR');
+
+        $this->assertDatabaseHas('spks', ['spk_number' => 'SPK-MANDOR-001', 'spk_type' => 'MANDOR']);
+    }
+
+    public function test_store_without_ppn(): void
+    {
+        $this->actingAsRole('PURCHASING_LEGAL');
+        $project = Project::factory()->create();
+
+        $this->postJson('/api/spks', [
+            'project_id'  => $project->id,
+            'spk_number'  => 'SPK-NOPPN-001',
+            'spk_type'    => 'SUBKON',
+            'subcon_name' => 'CV Tanpa PPN',
+            'subtotal'    => 10000000,
+            'include_ppn' => false,
+        ])
+            ->assertCreated()
+            ->assertJsonPath('data.tax_amount', '0.00')
+            ->assertJsonPath('data.total_amount', '10000000.00');
     }
 }

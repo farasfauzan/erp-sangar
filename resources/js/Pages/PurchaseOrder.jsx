@@ -7,6 +7,7 @@ import ConfirmModal from '@/Components/ui/ConfirmModal';
 
 export default function PurchaseOrder() {
     const [pos, setPos] = useState([]);
+    const [search, setSearch] = useState('');
     const [loading, setLoading] = useState(true);
     const [confirmState, setConfirmState] = useState({ open: false, poId: null });
     const api = useApi();
@@ -19,8 +20,8 @@ export default function PurchaseOrder() {
     const fetchPos = async () => {
         setLoading(true);
         try {
-            const data = await api.get('/api/pos', {}, { silent: true });
-            setPos(data);
+            const response = await api.get('/api/pos', { search }, { silent: true });
+            setPos(response.data || response);
         } catch (err) {
             console.error(err);
         } finally {
@@ -58,6 +59,17 @@ export default function PurchaseOrder() {
                     <div className="overflow-hidden bg-white shadow-sm sm:rounded-lg">
                         <div className="p-6 text-gray-900">
                             <div className="flex justify-between items-center mb-6">
+                                <div className="flex gap-3 items-center">
+                                    <input
+                                        type="text"
+                                        placeholder="Cari PO, supplier, proyek..."
+                                        value={search}
+                                        onChange={e => setSearch(e.target.value)}
+                                        onKeyDown={e => e.key === 'Enter' && fetchPos()}
+                                        className="border rounded px-3 py-2 text-sm w-64"
+                                    />
+                                    <button onClick={fetchPos} className="px-3 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">Cari</button>
+                                </div>
                                 <h3 className="text-lg font-bold">Daftar Purchase Order</h3>
                                 <a href={route("po.create")} className="bg-indigo-600 text-white px-4 py-2 rounded shadow hover:bg-indigo-700">
                                     + Buat PO Baru
@@ -71,6 +83,7 @@ export default function PurchaseOrder() {
                                     <thead className="bg-gray-50">
                                         <tr>
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">No. PO</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Level</th>
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Proyek</th>
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Supplier</th>
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Amount</th>
@@ -80,13 +93,18 @@ export default function PurchaseOrder() {
                                     </thead>
                                     <tbody className="bg-white divide-y divide-gray-200">
                                         {pos.length === 0 ? (
-                                            <tr><td colSpan="6" className="px-6 py-4 text-center text-sm text-gray-500">Belum ada data PO.</td></tr>
+                                            <tr><td colSpan="7" className="px-6 py-4 text-center text-sm text-gray-500">Belum ada data PO.</td></tr>
                                         ) : (
                                             pos.map((po, idx) => (
                                                 <tr key={idx}>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{po.po_number}</td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${po.po_level === 'PROJECT' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'}`}>
+                                                            {po.po_level || 'PROJECT'}
+                                                        </span>
+                                                    </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{po.project?.project_name ?? 'N/A'}</td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{po.supplier_name}</td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{po.supplier_name || '-'}</td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Rp {Number(po.total_amount).toLocaleString('id-ID')}</td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                                         <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">

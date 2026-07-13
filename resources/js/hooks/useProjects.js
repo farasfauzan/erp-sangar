@@ -28,7 +28,7 @@ export function useProjects() {
             _promise = axios
                 .get('/api/projects')
                 .then((res) => {
-                    const list = res.data?.data ?? res.data ?? [];
+                    const list = res.data?.data?.data ?? res.data?.data ?? res.data ?? [];
                     _cache = Array.isArray(list) ? list : [];
                     return _cache;
                 })
@@ -57,7 +57,7 @@ export function useProjects() {
         setLoading(true);
         try {
             const res = await axios.get('/api/projects');
-            const list = res.data?.data ?? res.data ?? [];
+            const list = res.data?.data?.data ?? res.data?.data ?? res.data ?? [];
             _cache = Array.isArray(list) ? list : [];
             setProjects(_cache);
         } catch {

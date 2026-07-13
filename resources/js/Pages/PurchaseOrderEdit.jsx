@@ -37,7 +37,7 @@ export default function PurchaseOrderEdit() {
     useEffect(() => {
         if (selectedProject) {
             axios.get(`/api/projects/${selectedProject}`).then(res => {
-                setRabBudgets(res.data.rab_budgets || []);
+                setRabBudgets(res.data?.data?.rab_budgets || res.data?.rab_budgets || []);
             });
         }
     }, [selectedProject]);
@@ -58,7 +58,7 @@ export default function PurchaseOrderEdit() {
             }
 
             setPo(poData);
-            setProjects(projectsRes.data || []);
+            setProjects(projectsRes.data?.data?.data || projectsRes.data?.data || projectsRes.data || []);
 
             setSelectedProject(poData.project_id);
 

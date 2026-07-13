@@ -17,11 +17,18 @@ class Tax extends Model
         'type',
         'is_active',
         'description',
+        'restitusi_status',
+        'restitusi_amount',
+        'restitusi_notes',
+        'restitusi_approved_at',
+        'restitusi_approved_by',
     ];
 
     protected $casts = [
         'rate' => 'decimal:4',
         'is_active' => 'boolean',
+        'restitusi_amount' => 'decimal:2',
+        'restitusi_approved_at' => 'datetime',
     ];
 
     /**

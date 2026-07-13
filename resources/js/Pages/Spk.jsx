@@ -9,9 +9,12 @@ const today = () => new Date().toISOString().slice(0, 10).replaceAll('-', '');
 const initialForm = () => ({
     project_id: '',
     spk_number: `SPK-${today()}-${String(Date.now()).slice(-4)}`,
+    spk_type: 'SUBKON',
     subcon_name: '',
     subtotal: '',
+    include_ppn: true,
     payment_terms: '',
+    jadwal_kirim: '',
 });
 const money = (value) => `Rp ${Number(value || 0).toLocaleString('id-ID')}`;
 
@@ -105,9 +108,20 @@ export default function Spk() {
                                     </select>
                                 </Field>
                                 <Field label="Nomor SPK"><input value={form.spk_number} onChange={(event) => update('spk_number', event.target.value)} required className="mt-1 block w-full rounded border-gray-300" /></Field>
+                                <Field label="Tipe SPK">
+                                    <select value={form.spk_type} onChange={(event) => update('spk_type', event.target.value)} required className="mt-1 block w-full rounded border-gray-300">
+                                        <option value="SUBKON">Subkon</option>
+                                        <option value="MANDOR">Mandor</option>
+                                    </select>
+                                </Field>
                                 <Field label="Nama Subkon"><input value={form.subcon_name} onChange={(event) => update('subcon_name', event.target.value)} required className="mt-1 block w-full rounded border-gray-300" placeholder="Nama perusahaan / mandor" /></Field>
                                 <Field label="Nilai sebelum PPN"><input type="number" min="0" step="0.01" value={form.subtotal} onChange={(event) => update('subtotal', event.target.value)} required className="mt-1 block w-full rounded border-gray-300" /></Field>
                                 <Field label="Termin Pembayaran"><input value={form.payment_terms} onChange={(event) => update('payment_terms', event.target.value)} className="mt-1 block w-full rounded border-gray-300" placeholder="Contoh: termin berdasarkan opname" /></Field>
+                                <Field label="Jadwal Kirim"><input type="date" value={form.jadwal_kirim} onChange={(event) => update('jadwal_kirim', event.target.value)} className="mt-1 block w-full rounded border-gray-300" /></Field>
+                                <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                                    <input type="checkbox" checked={form.include_ppn} onChange={(event) => update('include_ppn', event.target.checked)} className="rounded border-gray-300" />
+                                    Termasuk PPN (11%)
+                                </label>
                                 <div className="flex items-end"><button disabled={saving} className="rounded bg-emerald-600 px-5 py-2 text-sm font-medium text-white disabled:opacity-50">{saving ? 'Menyimpan...' : 'Simpan Draft SPK'}</button></div>
                             </form>
                         )}
@@ -119,7 +133,8 @@ export default function Spk() {
                             {loading ? <p>Memuat data...</p> : (
                                 <table className="min-w-full divide-y divide-gray-200">
                                     <thead className="bg-gray-50"><tr>
-                                        <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">Nomor</th>
+                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nomor SPK</th>
+                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tipe</th>
                                         <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">Proyek</th>
                                         <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">Subkon</th>
                                         <th className="px-4 py-3 text-right text-xs font-medium uppercase text-gray-500">Nilai</th>
@@ -129,6 +144,7 @@ export default function Spk() {
                                     <tbody className="divide-y divide-gray-200 bg-white">
                                         {spks.length ? spks.map((spk) => <tr key={spk.id}>
                                             <td className="px-4 py-3 text-sm font-medium text-gray-900">{spk.spk_number}</td>
+                                        <td className="px-4 py-3 text-sm text-gray-700">{spk.spk_type === 'SUBKON' ? 'Subkon' : 'Mandor'}</td>
                                             <td className="px-4 py-3 text-sm text-gray-600">{spk.project?.project_name || '-'}</td>
                                             <td className="px-4 py-3 text-sm text-gray-600">{spk.subcon_name}</td>
                                             <td className="px-4 py-3 text-right text-sm text-gray-600">{money(spk.total_amount)}</td>
@@ -136,7 +152,7 @@ export default function Spk() {
                                             <td className="px-4 py-3">
                                                 <div className="flex items-center gap-2">
                                                     {spk.status === 'DRAFT' && <button onClick={() => submit(spk)} className="rounded bg-emerald-600 px-3 py-1 text-sm text-white">Kirim Approval</button>}
-                                                    <button onClick={() => window.open(`/spks/${spk.id}/print`, '_blank')} className="rounded bg-gray-100 px-3 py-1 text-sm text-indigo-600 hover:bg-gray-200">🖨️ Cetak</button>
+                                                    <button onClick={() => window.open(`/spks/${spk.id}/print`, '_blank')} disabled={spk.status !== 'APPROVED'} className={`rounded px-3 py-1 text-sm ${spk.status === 'APPROVED' ? 'bg-gray-100 text-indigo-600 hover:bg-gray-200' : 'bg-gray-50 text-gray-400 cursor-not-allowed'}`}>🖨️ Cetak</button>
                                                 </div>
                                             </td>
                                         </tr>) : <tr><td colSpan="6" className="px-4 py-5 text-center text-sm text-gray-500">Belum ada SPK.</td></tr>}

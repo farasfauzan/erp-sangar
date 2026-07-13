@@ -9,6 +9,7 @@ use App\Models\PoItem;
 use App\Models\PurchaseOrder;
 use App\Models\Spk;
 use App\Models\User;
+use App\Models\Role;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Tests\TestCase;
@@ -17,10 +18,16 @@ class ErpWorkflowTest extends TestCase
 {
     use RefreshDatabase;
 
+    private function adminUser(): User
+    {
+        $role = Role::firstOrCreate(['role_name' => 'ADMIN']);
+        return User::factory()->create(['role_id' => $role->id]);
+    }
+
     public function test_material_flow_must_follow_rab_po_receipt_invoice_and_payment_stages(): void
     {
-        $user = User::factory()->create();
-        $this->actingAs($user, 'sanctum');
+        $user = $this->adminUser();
+        $this->actingAs($user);
         $project = $this->project();
         $rab = $this->rab($project, 'DRAFT');
 
@@ -38,6 +45,7 @@ class ErpWorkflowTest extends TestCase
             'project_id' => $project->id,
             'po_number' => 'PO-ERP-001',
             'date' => '2026-07-10',
+            'po_level' => 'SUPPLIER',
             'supplier_name' => 'PT Material Utama',
             'payment_terms' => '30 hari',
             'items' => [[
@@ -92,13 +100,14 @@ class ErpWorkflowTest extends TestCase
 
     public function test_spk_invoice_must_reference_an_approved_opname_once(): void
     {
-        $user = User::factory()->create();
-        $this->actingAs($user, 'sanctum');
+        $user = $this->adminUser();
+        $this->actingAs($user);
         $project = $this->project();
 
         $spkResponse = $this->actingAs($user)->postJson('/api/spks', [
             'project_id' => $project->id,
             'spk_number' => 'SPK-ERP-001',
+            'spk_type' => 'SUBKON',
             'subcon_name' => 'CV Bangun Jaya',
             'subtotal' => 100000,
             'payment_terms' => 'Berdasarkan opname',
@@ -153,8 +162,8 @@ class ErpWorkflowTest extends TestCase
 
     public function test_fund_request_must_be_approved_paid_and_accounted_for_in_sequence(): void
     {
-        $user = User::factory()->create();
-        $this->actingAs($user, 'sanctum');
+        $user = $this->adminUser();
+        $this->actingAs($user);
         $project = $this->project();
 
         $fundResponse = $this->actingAs($user)->postJson('/api/fund-requests', [
@@ -181,7 +190,7 @@ class ErpWorkflowTest extends TestCase
 
     public function test_workflow_control_pages_are_available_to_authenticated_users(): void
     {
-        $user = User::factory()->create();
+        $user = $this->adminUser();
 
         $this->actingAs($user)->get('/rab-control')->assertOk();
         $this->actingAs($user)->get('/spk')->assertOk();
@@ -189,8 +198,8 @@ class ErpWorkflowTest extends TestCase
 
     public function test_rab_import_validates_every_row_and_archives_replaced_data(): void
     {
-        $user = User::factory()->create();
-        $this->actingAs($user, 'sanctum');
+        $user = $this->adminUser();
+        $this->actingAs($user);
         $project = $this->project();
         $existing = $this->rab($project, 'DRAFT');
 
@@ -199,7 +208,7 @@ class ErpWorkflowTest extends TestCase
             'confirm_replace' => true,
             'file' => $this->xlsx([
                 ['Kode', 'Uraian', 'Volume', 'Satuan', 'Harga Satuan', 'Jumlah'],
-                ['MAT-001', 'Semen', '', 'Zak', '75000', ''],
+                ['MAT-001', 'Semen', 'abc', 'Zak', '75000', ''],
             ]),
         ])->assertUnprocessable()
             ->assertJsonPath('message', 'Import dibatalkan. Perbaiki data pada baris yang ditandai.');
@@ -233,8 +242,8 @@ class ErpWorkflowTest extends TestCase
 
     public function test_partial_goods_receipt_updates_inventory_and_only_completes_po_when_all_items_arrive(): void
     {
-        $user = User::factory()->create();
-        $this->actingAs($user, 'sanctum');
+        $user = $this->adminUser();
+        $this->actingAs($user);
         $project = $this->project();
         $rab = $this->rab($project, 'APPROVED');
         $po = PurchaseOrder::create([

@@ -28,8 +28,8 @@ export default function PaymentExecution() {
                 api.get('/api/invoices', {}, { silent: true }),
                 api.get('/api/fund-requests', {}, { silent: true }),
             ]);
-            setInvoices(invoiceData);
-            setFunds(fundData);
+            setInvoices(invoiceData.data || invoiceData);
+            setFunds(fundData.data || fundData);
         } catch (err) {
             // error handled silently
         } finally {

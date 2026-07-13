@@ -116,20 +116,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/purchase-orders/{id}/edit', fn ($id) => Inertia::render('PurchaseOrderEdit', ['id' => $id]))->name('purchase-orders.edit');
 });
 
-// Print routes — pass data as Inertia props so pages render standalone
+// Print routes — blade templates for PDF / browser print
 Route::middleware(['auth', 'verified'])->group(function () {
-    Route::get('/purchase-orders/{id}/print', function ($id) {
-        $po = \App\Models\PurchaseOrder::with(['items.rabBudget', 'project', 'attachments'])->findOrFail($id);
-        return Inertia::render('Print/PurchaseOrderPrint', ['po' => $po]);
-    })->name('purchase-orders.print');
-
+    Route::get('/purchase-orders/{id}/print', [\App\Http\Controllers\PrintController::class, 'purchaseOrder'])->name('purchase-orders.print');
+    Route::get('/purchase-orders/{id}/pdf', [\App\Http\Controllers\PrintController::class, 'purchaseOrderPdf'])->name('purchase-orders.pdf');
+    Route::get('/spks/{id}/print', [\App\Http\Controllers\PrintController::class, 'spk'])->name('spks.print');
+    Route::get('/spks/{id}/pdf', [\App\Http\Controllers\PrintController::class, 'spkPdf'])->name('spks.pdf');
     Route::get('/invoices/{id}/print', function ($id) {
         $invoice = \App\Models\Invoice::with(['invoiceable', 'transactions'])->findOrFail($id);
         return Inertia::render('Print/InvoicePrint', ['invoice' => $invoice]);
     })->name('invoices.print');
-
-    Route::get('/spks/{id}/print', function ($id) {
-        $spk = \App\Models\Spk::with(['project', 'progress'])->findOrFail($id);
-        return Inertia::render('Print/SpkPrint', ['spk' => $spk]);
-    })->name('spks.print');
+    Route::get('/basts/{id}/print', [\App\Http\Controllers\PrintController::class, 'bast'])->name('basts.print');
+    Route::get('/basts/{id}/pdf', [\App\Http\Controllers\PrintController::class, 'bastPdf'])->name('basts.pdf');
 });

@@ -325,22 +325,22 @@ export default function RabStorage({ projects, selectedProject, importJobs, budg
                                     {importJobs.links.map((link, idx) => {
                                         if (link.label === '...') return <span key={idx} style={{ padding: '0.35rem 0.6rem', color: P.textMuted }}>...</span>;
                                         return link.url ? (
-                                            <a
+                                            <button
                                                 key={idx}
-                                                href={link.url}
+                                                onClick={() => router.get(link.url, {}, { preserveState: true, preserveScroll: true })}
                                                 style={{
                                                     padding: '0.35rem 0.6rem',
                                                     borderRadius: '3px',
                                                     fontSize: '0.75rem',
                                                     fontWeight: 600,
-                                                    textDecoration: 'none',
+                                                    cursor: 'pointer',
                                                     background: link.active ? P.gold : P.cream,
                                                     color: link.active ? '#fef0d8' : P.text,
                                                     border: `1px solid ${P.border}`,
                                                 }}
                                             >
                                                 {link.label.replace('&laquo;', '«').replace('&raquo;', '»')}
-                                            </a>
+                                            </button>
                                         ) : (
                                             <span key={idx} style={{ padding: '0.35rem 0.6rem', borderRadius: '3px', fontSize: '0.75rem', color: P.textLight, border: `1px solid ${P.borderLight}`, background: P.cream }}>
                                                 {link.label.replace('&laquo;', '«').replace('&raquo;', '»')}
@@ -419,22 +419,22 @@ export default function RabStorage({ projects, selectedProject, importJobs, budg
                                     {budgets.links.map((link, idx) => {
                                         if (link.label === '...') return <span key={idx} style={{ padding: '0.35rem 0.6rem', color: P.textMuted }}>...</span>;
                                         return link.url ? (
-                                            <a
+                                            <button
                                                 key={idx}
-                                                href={link.url}
+                                                onClick={() => router.get(link.url, {}, { preserveState: true, preserveScroll: true })}
                                                 style={{
                                                     padding: '0.35rem 0.6rem',
                                                     borderRadius: '3px',
                                                     fontSize: '0.75rem',
                                                     fontWeight: 600,
-                                                    textDecoration: 'none',
+                                                    cursor: 'pointer',
                                                     background: link.active ? P.gold : P.cream,
                                                     color: link.active ? '#fef0d8' : P.text,
                                                     border: `1px solid ${P.border}`,
                                                 }}
                                             >
                                                 {link.label.replace('&laquo;', '«').replace('&raquo;', '»')}
-                                            </a>
+                                            </button>
                                         ) : (
                                             <span key={idx} style={{ padding: '0.35rem 0.6rem', borderRadius: '3px', fontSize: '0.75rem', color: P.textLight, border: `1px solid ${P.borderLight}`, background: P.cream }}>
                                                 {link.label.replace('&laquo;', '«').replace('&raquo;', '»')}

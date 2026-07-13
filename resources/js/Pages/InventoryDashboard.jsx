@@ -25,7 +25,7 @@ export default function InventoryDashboard() {
             const params = {};
             if (search) params.search = search;
             const data = await api.get('/api/inventory', params, { silent: true });
-            const payload = data?.data ?? data ?? [];
+            const payload = data?.data?.data ?? data?.data ?? data ?? [];
             setItems(Array.isArray(payload) ? payload : []);
         } catch {
             toast.error('Gagal memuat data inventaris.');

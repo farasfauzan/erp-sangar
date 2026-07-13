@@ -31,6 +31,10 @@ class PurchaseOrder extends Model
         'total_amount',
         'payment_terms',
         'status',
+        'po_level',
+        'routed_to',
+        'routed_by',
+        'routed_at',
         'created_by',
         'approved_by',
     ];

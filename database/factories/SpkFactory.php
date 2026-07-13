@@ -19,11 +19,14 @@ class SpkFactory extends Factory
         return [
             'project_id'    => Project::factory(),
             'spk_number'    => 'SPK-' . fake()->unique()->numerify('######'),
+            'spk_type'      => 'SUBKON',
             'subcon_name'   => fake()->company(),
             'subtotal'      => 100000,
             'tax_amount'    => 11000,
             'total_amount'  => 111000,
+            'include_ppn'   => true,
             'payment_terms' => 'Berdasarkan opname',
+            'jadwal_kirim'  => null,
             'status'        => 'DRAFT',
             'created_by'    => User::factory(),
         ];

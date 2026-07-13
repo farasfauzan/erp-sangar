@@ -11,7 +11,7 @@ export default function AuditTrail() {
 
     useEffect(() => {
         api.get('/api/audit-logs', {}, { silent: true }).then((data) => {
-            setLogs(data);
+            setLogs(data?.data?.data || data?.data || data);
             setLoading(false);
         }).catch(() => setLoading(false));
     }, []);

@@ -98,9 +98,23 @@ trait HandlesRabParsing
             }
             $zip->close();
 
+            // Skip known non-RAB sheet names for faster parsing
+            $skipSheets = ['terbilang', 'kurva', 'curve', 'schedule', 'time schedule', 'cash flow', 'rekap total'];
+
             foreach ($sheetFiles as $sheetNum => $sheetPath) {
-                // Use actual sheet name if available, otherwise fallback to "SheetN"
                 $sheetName = $sheetNames[$sheetNum - 1] ?? "Sheet$sheetNum";
+                $sheetNameLower = strtolower($sheetName);
+
+                // Skip non-RAB sheets
+                $shouldSkip = false;
+                foreach ($skipSheets as $skip) {
+                    if (str_contains($sheetNameLower, $skip)) {
+                        $shouldSkip = true;
+                        break;
+                    }
+                }
+                if ($shouldSkip) continue;
+
                 $sheetRows = [];
                 foreach ($this->streamWorksheetRows($path, $sheetName) as $row) {
                     if ($maxRows !== null && count($sheetRows) >= $maxRows) break;
@@ -338,10 +352,10 @@ trait HandlesRabParsing
             ][$resCat] ?? 'M';
             
             if (!isset($this->codeCounters[$prefix])) {
-                $this->codeCounters[$prefix] = 10001;
+                $this->codeCounters[$prefix] = 1;
             }
             $num = $this->codeCounters[$prefix]++;
-            return $prefix . $num;
+            return $prefix . '.' . str_pad($num, 2, '0', STR_PAD_LEFT);
         }
 
         $prefix = strtoupper(substr(preg_replace('/[^A-Za-z0-9]/', '', $cat), 0, 3));
@@ -354,7 +368,7 @@ trait HandlesRabParsing
         }
 
         $num = $this->codeCounters[$prefix]++;
-        return $prefix . '-' . str_pad($num, 4, '0', STR_PAD_LEFT);
+        return $prefix . '.' . str_pad($num, 2, '0', STR_PAD_LEFT);
     }
 
     /**
@@ -411,10 +425,16 @@ trait HandlesRabParsing
      */
     protected function normalizeRabRow(array $row, array $columnMap, int $rowNumber, ?string $currentSectionCode = null, bool $useLlm = false): ?array
     {
+        // Skip rows with very few non-empty cells (section headers like "III | PEKERJAAN SMK3")
+        $nonEmpty = count(array_filter($row, fn($v) => $v !== null && trim((string)$v) !== ''));
+        if ($nonEmpty <= 2) {
+            return null;
+        }
+
         $description = trim((string) ($row[$columnMap['uraian']] ?? ''));
         
-        $rawVolume = $row[$columnMap['volume']] ?? null;
-        $rawUnitPrice = $row[$columnMap['harga_satuan']] ?? null;
+        $rawVolume = $row[$columnMap['volume'] ?? -1] ?? null;
+        $rawUnitPrice = $row[$columnMap['harga_satuan'] ?? -1] ?? null;
         $rawTotalPrice = $row[$columnMap['jumlah'] ?? -1] ?? null;
 
         // Skip completely empty rows
@@ -439,17 +459,32 @@ trait HandlesRabParsing
         }
 
         // Strict numeric validation
+        // Skip rows with empty/whitespace volume (section headers, items without quantity, etc.)
+        $rawVolStr = trim((string)($rawVolume ?? ''));
+        if ($rawVolStr === '' || $rawVolStr === '-' || $rawVolStr === '0') {
+            return null;
+        }
+
+        // Validate volume is numeric
         $volume = $this->validateNumber($rawVolume, 'Volume', $rowNumber, $description);
         if ($volume === null) {
-            if ($rawUnitPrice === null && $rawTotalPrice === null) {
+            // Sub-header patterns: single letter, parentheses like "(3)", short labels
+            if (strlen($rawVolStr) <= 1 || preg_match('/^\(.+\)$/', $rawVolStr)) {
                 return null;
             }
+            // Longer non-numeric volume = invalid data, return error
             return ['error' => "Baris {$rowNumber} ({$description}): Volume '{$rawVolume}' tidak valid. Harus berupa angka."];
+        }
+        $volume = $this->validateNumber($rawVolume, 'Volume', $rowNumber, $description);
+        if ($volume === null) {
+            // Non-numeric volume = sub-header or section label, skip
+            return null;
         }
 
         $unitPrice = $this->validateNumber($rawUnitPrice, 'Harga Satuan', $rowNumber, $description);
         if ($unitPrice === null) {
-            return ['error' => "Baris {$rowNumber} ({$description}): Harga Satuan '{$rawUnitPrice}' tidak valid. Harus berupa angka."];
+            // Non-numeric harga_satuan = invalid data, skip row
+            return null;
         }
 
         $totalPrice = $this->validateNumber($rawTotalPrice, 'Jumlah', $rowNumber, $description);
@@ -462,9 +497,9 @@ trait HandlesRabParsing
             return null;
         }
 
-        // Validation constraints
+        // Skip rows with volume=0 (section headers, summaries, etc.)
         if ($volume <= 0) {
-            return ['error' => "Baris {$rowNumber} ({$description}): Volume harus lebih dari 0."];
+            return null;
         }
         if ($unitPrice < 0) {
             return ['error' => "Baris {$rowNumber} ({$description}): Harga Satuan harus bernilai 0 atau lebih."];
@@ -472,6 +507,10 @@ trait HandlesRabParsing
 
         if ($totalPrice === 0.0) {
             $totalPrice = $volume * $unitPrice;
+        }
+        // Calculate unit_price from total_price / volume when unit_price is 0
+        if ($unitPrice === 0.0 && $volume > 0 && $totalPrice > 0) {
+            $unitPrice = $totalPrice / $volume;
         }
         if ($totalPrice < 0) {
             return ['error' => "Baris {$rowNumber} ({$description}): Jumlah tidak boleh negatif."];
@@ -516,15 +555,20 @@ trait HandlesRabParsing
     protected function mapColumns(array $headerRow): array
     {
         $map = [];
-        $knownCols = [
-            'no' => ['nomor urut', 'no urut', 'nomor', 'no.'],
-            'kode' => ['kode pekerjaan', 'kode rekening', 'kode barang', 'kode item', 'kode akun', 'kode'],
-            'uraian' => ['uraian pekerjaan', 'uraian barang', 'nama pekerjaan', 'jenis barang/jasa', 'nama barang', 'deskripsi', 'description', 'rincian', 'keterangan', 'pekerjaan', 'uraian'],
-            'volume' => ['volume', 'vol', 'qty', 'quantity', 'kuantitas'],
-            'satuan' => ['satuan unit', 'satuan', 'uom'],
-            'harga_satuan' => ['harga satuan', 'harga_satuan', 'unit price', 'harga per satuan', 'hs', 'harga'],
-            'jumlah' => ['jumlah harga satuan', 'total harga', 'total biaya', 'subtotal', 'sub total', 'amount', 'nilai', 'jumlah', 'total'],
-            'kategori' => ['kode kategori', 'kelompok', 'category', 'kategori', 'group', 'jenis'],
+        $scores = [];
+
+        // ── KEYWORD-BASED DETECTION ──────────────────────────────────
+        // Score each header cell against keywords for each column type.
+        // Works with ANY RAB format — no hardcoded aliases needed.
+        $colKeywords = [
+            'no' => ['no', 'nomor', 'urut', 'seq', 'number'],
+            'kode' => ['kode', 'code', 'kd', 'analis', 'analisa', 'ref', 'referensi', 'rekening'],
+            'uraian' => ['uraian', 'deskripsi', 'description', 'pekerjaan', 'barang', 'jasa', 'nama', 'rincian', 'keterangan', 'item', 'material'],
+            'volume' => ['volume', 'vol', 'qty', 'quantity', 'kuantitas', 'koef', 'koefisien', 'banyak', 'perkiraan'],
+            'satuan' => ['satuan', 'uom', 'sat'],
+            'harga_satuan' => ['harga satuan', 'unit price', 'harga per', 'hsp', 'hsat', 'harga unit'],
+            'jumlah' => ['jumlah harga', 'total harga', 'total biaya', 'subtotal', 'nilai', 'total', 'biaya', 'amount', 'jumlah'],
+            'kategori' => ['kategori', 'kelompok', 'category', 'group', 'golongan', 'tipe', 'type', 'asal negara', 'tkdn'],
         ];
 
         foreach ($headerRow as $colIdx => $header) {
@@ -533,37 +577,86 @@ trait HandlesRabParsing
             $h = trim(preg_replace('/\s*\(.*?\)\s*/', '', $h));
             if ($h === '') continue;
 
-            $bestLen = 0;
+            // Normalize whitespace: "j u m l a h" -> "jumlah"
+            $hNormalized = preg_replace('/\s+/', '', $h);
+
+            $bestScore = 0;
             $bestKey = null;
 
-            foreach ($knownCols as $key => $aliases) {
-                foreach ($aliases as $alias) {
-                    $a = strtolower($alias);
-                    if ($h === $a) {
-                        $bestLen = strlen($a) * 100;
-                        $bestKey = $key;
-                        break;
+            foreach ($colKeywords as $key => $keywords) {
+                foreach ($keywords as $kw) {
+                    $kw = strtolower($kw);
+                    if ($h === $kw || $hNormalized === $kw) {
+                        $score = 1000 + strlen($kw);
+                    } elseif (str_starts_with($h, $kw) || str_starts_with($hNormalized, $kw)) {
+                        $score = 500 + strlen($kw);
+                    } elseif (preg_match('/\b' . preg_quote($kw, '/') . '\b/', $h) || str_contains($hNormalized, $kw)) {
+                        $score = 200 + strlen($kw);
+                    } elseif (str_contains($h, $kw)) {
+                        $score = 50 + strlen($kw);
+                    } else {
+                        continue;
                     }
-                    if (str_starts_with($h, $a) && strlen($a) > $bestLen) {
-                        $bestLen = strlen($a);
-                        $bestKey = $key;
-                    } elseif (preg_match('/\b' . preg_quote($a, '/') . '\b/', $h) && strlen($a) > $bestLen) {
-                        $bestLen = strlen($a);
+                    if ($score > $bestScore) {
+                        $bestScore = $score;
                         $bestKey = $key;
                     }
                 }
             }
 
             if ($bestKey !== null) {
-                $map[$bestKey] = $colIdx;
+                if (! isset($map[$bestKey]) || $bestScore > ($scores[$bestKey] ?? 0)) {
+                    $map[$bestKey] = $colIdx;
+                    $scores[$bestKey] = $bestScore;
+                }
             }
         }
 
-        // Adaptive Fallback: If 'volume' is missing but 'jumlah' is mapped alongside 'harga_satuan',
-        // the 'jumlah' column actually represents the item quantity/volume.
+        // ── POSITIONAL FALLBACK ──────────────────────────────────────
+        // If keyword detection missed critical columns, guess by position.
+        // Standard RAB order: No | Kode/Uraian | ... | Volume | Satuan | Harga Satuan | Jumlah
+        $nonEmptyCols = [];
+        foreach ($headerRow as $colIdx => $header) {
+            if ($header !== null && trim((string)$header) !== '') {
+                $nonEmptyCols[] = $colIdx;
+            }
+        }
+
+        if (count($nonEmptyCols) >= 3) {
+            // If no uraian detected, assume first text-like column is uraian
+            if (! isset($map['uraian'])) {
+                foreach ($nonEmptyCols as $idx) {
+                    $val = trim((string)($headerRow[$idx] ?? ''));
+                    if (! is_numeric($val) && strlen($val) > 2) {
+                        $map['uraian'] = $idx;
+                        break;
+                    }
+                }
+            }
+        }
+
+        // ── ADAPTIVE FALLBACKS ─────────────────────────────────────────
+        // 1. If volume missing + jumlah exists + harga_satuan exists → jumlah is volume
         if (! isset($map['volume']) && isset($map['jumlah']) && isset($map['harga_satuan'])) {
             $map['volume'] = $map['jumlah'];
             unset($map['jumlah']);
+        }
+        // 2. If volume missing + jumlah exists → jumlah is volume
+        if (! isset($map['volume']) && isset($map['jumlah'])) {
+            $map['volume'] = $map['jumlah'];
+            unset($map['jumlah']);
+        }
+        // 3. If jumlah missing + look for 'Harga' column (total price) that wasn't mapped
+        if (! isset($map['jumlah'])) {
+            foreach ($headerRow as $colIdx => $header) {
+                if ($header === null) continue;
+                if (in_array($colIdx, $map)) continue; // already mapped
+                $h = strtolower(trim((string)$header));
+                if (str_contains($h, 'harga') && ! str_contains($h, 'satuan')) {
+                    $map['jumlah'] = $colIdx;
+                    break;
+                }
+            }
         }
 
         return $map;
@@ -574,7 +667,7 @@ trait HandlesRabParsing
      */
     protected function findBestSheet(array $sheets): ?array
     {
-        $headerKeywords = ['uraian', 'deskripsi', 'pekerjaan', 'description', 'item', 'nama barang', 'uraian barang', 'harga satuan'];
+        $headerKeywords = ['uraian', 'deskripsi', 'pekerjaan', 'description', 'item', 'nama barang', 'uraian barang', 'harga satuan', 'volume', 'satuan', 'harga', 'qty', 'jumlah', 'total', 'material', 'bahan', 'upah', 'tenaga', 'alat', 'subkon', 'kode', 'no', 'biaya', 'cost'];
         $requiredCols = ['uraian', 'volume', 'harga_satuan'];
         $best = null;
         $bestScore = 0;
@@ -590,7 +683,7 @@ trait HandlesRabParsing
                         if (str_contains($cell, $keyword)) { $matchCount++; break; }
                     }
                 }
-                if ($matchCount >= 2) {
+                if ($matchCount >= 1) {
                     $headerRowIndex = $idx;
                     break;
                 }
@@ -600,10 +693,21 @@ trait HandlesRabParsing
                 foreach ($rows as $idx => $row) {
                     $lower = array_map(fn($v) => strtolower(trim((string)$v)), $row);
                     foreach ($lower as $cell) {
-                        if (str_contains($cell, 'uraian') || str_contains($cell, 'harga satuan')) {
+                        if (str_contains($cell, 'uraian') || str_contains($cell, 'harga satuan') || str_contains($cell, 'deskripsi') || str_contains($cell, 'volume') || str_contains($cell, 'harga') || str_contains($cell, 'satuan') || str_contains($cell, 'qty') || str_contains($cell, 'jumlah')) {
                             $headerRowIndex = $idx;
                             break 2;
                         }
+                    }
+                }
+            }
+
+            // Last resort: positional detection (assume first row with 3+ non-empty cells is header)
+            if ($headerRowIndex === null) {
+                foreach ($rows as $idx => $row) {
+                    $nonEmpty = count(array_filter($row, fn($v) => $v !== null && trim((string)$v) !== ''));
+                    if ($nonEmpty >= 3) {
+                        $headerRowIndex = $idx;
+                        break;
                     }
                 }
             }
@@ -670,49 +774,11 @@ trait HandlesRabParsing
     protected function isNonRabSheet(string $sheetName, array $rows, int $headerRowIndex): bool
     {
         $nameLower = strtolower($sheetName);
-        $skipKeywords = [
-            'analisa', 'analisis', 'analysis', 'ahs', 'ahsp', 'anl.', 'dhbu', 'dhsp', 'harga', 
-            'bahan', 'upah', 'tkdn', 'impor', 'import', 'rekap', 'schd', 'kurva', 
-            'curve', 'flow', 'terbilang', 'koefisien', 'schedule', 'time schedule', 'ts', 'hit. me'
-        ];
 
-        foreach ($skipKeywords as $keyword) {
-            if (str_contains($nameLower, $keyword)) {
-                return true;
-            }
-        }
-
-        // Scan first 8 rows of the sheet for metadata keywords
-        foreach (array_slice($rows, 0, 8) as $row) {
-            foreach ($row as $cell) {
-                if ($cell === null) continue;
-                $cellLower = strtolower(trim((string)$cell));
-                if (
-                    str_contains($cellLower, 'tkdn') || 
-                    str_contains($cellLower, 'tingkat komponen dalam negeri') || 
-                    str_contains($cellLower, 'daftar barang yang diimpor') || 
-                    str_contains($cellLower, 'analisa satuan') || 
-                    str_contains($cellLower, 'analisa harga') ||
-                    str_contains($cellLower, 'analisa pekerjaan') ||
-                    str_contains($cellLower, 'daftar harga')
-                ) {
-                    return true;
-                }
-            }
-        }
-
-        // Check columns in the header row for coefficient/analysis keywords
-        $headerRow = $rows[$headerRowIndex] ?? [];
-        foreach ($headerRow as $cell) {
-            if ($cell === null) continue;
-            $cellLower = strtolower(trim((string)$cell));
-            if (
-                str_contains($cellLower, 'koefisien') || 
-                str_contains($cellLower, 'koef') || 
-                str_contains($cellLower, 'coefficient') || 
-                str_contains($cellLower, 'analisa') || 
-                str_contains($cellLower, 'hsp')
-            ) {
+        // Only skip sheets that are CLEARLY not RAB data
+        $skipNames = ['terbilang', 'kurva', 'curve', 'schedule', 'time schedule', 'cash flow', 'rekap total'];
+        foreach ($skipNames as $skip) {
+            if ($nameLower === $skip || str_contains($nameLower, $skip)) {
                 return true;
             }
         }
@@ -972,85 +1038,85 @@ trait HandlesRabParsing
      */
     protected function findValidSheets(array $sheets): array
     {
-        $headerKeywords = ['uraian', 'deskripsi', 'pekerjaan', 'description', 'item', 'nama barang', 'uraian barang', 'harga satuan'];
-        $requiredCols = ['uraian', 'volume', 'harga_satuan'];
         $validSheets = [];
+        $bestScore = -1;
+        $bestSheet = null;
 
         foreach ($sheets as $sheetName => $rows) {
+            // Skip known non-RAB sheets
+            if ($this->isNonRabSheet($sheetName, $rows, 0)) continue;
+
+            // Find header row: look for row with uraian + volume + harga_satuan keywords
             $headerRowIndex = null;
+            $headerKeywords = ['uraian', 'deskripsi', 'pekerjaan', 'description', 'item', 'nama barang', 'harga satuan', 'volume', 'satuan', 'harga', 'qty', 'jumlah', 'total', 'kode', 'no'];
 
             foreach ($rows as $idx => $row) {
                 $lower = array_map(fn($v) => strtolower(trim((string)$v)), $row);
                 $matchCount = 0;
+                $hasUraian = false;
+                $hasVolume = false;
+                $hasHarga = false;
+                $hasNumeric = false;
+
                 foreach ($lower as $cell) {
-                    foreach ($headerKeywords as $keyword) {
-                        if (str_contains($cell, $keyword)) { $matchCount++; break; }
+                    // Check if cell looks like a number (data row, not header)
+                    if (is_numeric($cell) && (float)$cell > 0) $hasNumeric = true;
+
+                    // Normalize whitespace: "j u m l a h" -> "jumlah"
+                    $normalizedCell = preg_replace('/\s+/', '', $cell);
+
+                    foreach ($headerKeywords as $kw) {
+                        if (str_contains($cell, $kw) || str_contains($normalizedCell, $kw)) {
+                            $matchCount++;
+                            if (str_contains($cell, 'uraian') || str_contains($cell, 'deskripsi') || str_contains($cell, 'pekerjaan') || str_contains($cell, 'description') || str_contains($cell, 'item') || str_contains($cell, 'nama')) $hasUraian = true;
+                            if (str_contains($cell, 'volume') || str_contains($cell, 'qty') || str_contains($cell, 'kuantitas') || str_contains($cell, 'koef') || str_contains($cell, 'perkiraan') || str_contains($cell, 'banyak')) $hasVolume = true;
+                            if (str_contains($cell, 'harga satuan') || str_contains($cell, 'unit price') || str_contains($cell, 'hsp') || str_contains($cell, 'jumlah') || str_contains($cell, 'total')) $hasHarga = true;
+                            break;
+                        }
                     }
                 }
-                if ($matchCount >= 2) {
+
+                // Best header: has uraian + volume + harga_satuan keywords, NO numeric data
+                if ($hasUraian && $hasVolume && $hasHarga && !$hasNumeric) {
                     $headerRowIndex = $idx;
                     break;
                 }
-            }
-
-            if ($headerRowIndex === null) {
-                foreach ($rows as $idx => $row) {
-                    $lower = array_map(fn($v) => strtolower(trim((string)$v)), $row);
-                    foreach ($lower as $cell) {
-                        if (str_contains($cell, 'uraian') || str_contains($cell, 'harga satuan')) {
-                            $headerRowIndex = $idx;
-                            break 2;
-                        }
+                // Good header: 3+ keywords, short cells, no numeric data
+                if ($matchCount >= 3 && !$hasNumeric) {
+                    $shortCells = 0;
+                    foreach ($row as $cell) {
+                        if ($cell !== null && strlen(trim((string)$cell)) > 0 && strlen(trim((string)$cell)) < 30) $shortCells++;
+                    }
+                    if ($shortCells >= 3 && $headerRowIndex === null) {
+                        $headerRowIndex = $idx;
                     }
                 }
             }
 
             if ($headerRowIndex === null) continue;
 
-            if ($this->isNonRabSheet($sheetName, $rows, $headerRowIndex)) {
-                continue;
-            }
-
             $colMap = $this->mapColumns($rows[$headerRowIndex]);
             if (!isset($colMap['uraian'])) continue;
+            if (!isset($colMap['volume']) || (!isset($colMap['harga_satuan']) && !isset($colMap['jumlah']))) continue;
 
-            if (!isset($colMap['volume']) || !isset($colMap['harga_satuan'])) {
-                for ($next = $headerRowIndex + 1; $next < min($headerRowIndex + 3, count($rows)); $next++) {
-                    $colMap2 = $this->mapColumns($rows[$next]);
-                    if (isset($colMap2['volume']) && !isset($colMap['volume'])) $colMap['volume'] = $colMap2['volume'];
-                    if (isset($colMap2['harga_satuan']) && !isset($colMap['harga_satuan'])) $colMap['harga_satuan'] = $colMap2['harga_satuan'];
-                    if (isset($colMap2['jumlah']) && !isset($colMap['jumlah'])) $colMap['jumlah'] = $colMap2['jumlah'];
-                    if (isset($colMap['volume']) && isset($colMap['harga_satuan'])) break;
-                }
-            }
+            // Score this sheet
+            $score = 0;
+            $nameLower = strtolower($sheetName);
+            if (str_contains($nameLower, 'rab')) $score += 100;
+            if (str_contains($nameLower, 'impor')) $score += 50;
+            if (str_contains($nameLower, 'rekap')) $score -= 50;
+            if (str_contains($nameLower, 'analisa')) $score -= 40;
 
-            if ($this->columnMapError($colMap) !== null) {
-                continue;
-            }
-
-            $dataRows = 0;
-            $numericRows = 0;
-            foreach ($rows as $idx => $row) {
-                if ($idx <= $headerRowIndex) continue;
-                $uraian = trim((string)($row[$colMap['uraian']] ?? ''));
-                if ($uraian !== '' && strtolower($uraian) !== 'jumlah' && strtolower($uraian) !== 'total') {
-                    $dataRows++;
-                    $vol = $this->validateNumber($row[$colMap['volume'] ?? -1] ?? null, 'Volume', $idx, $uraian);
-                    $harga = $this->validateNumber($row[$colMap['harga_satuan'] ?? -1] ?? null, 'Harga Satuan', $idx, $uraian);
-                    if ($vol !== null && $harga !== null) {
-                        $numericRows++;
-                    }
-                }
-            }
-
-            if ($dataRows > 0 && $numericRows > 0) {
-                $validSheets[] = [
-                    'sheetName' => $sheetName,
-                    'headerIndex' => $headerRowIndex,
-                    'colMap' => $colMap,
-                ];
-            }
+            $validSheets[] = [
+                'sheetName' => $sheetName,
+                'headerIndex' => $headerRowIndex,
+                'colMap' => $colMap,
+                'nameScore' => $score,
+            ];
         }
+
+        // Sort by nameScore descending (prefer RAB sheets)
+        usort($validSheets, fn($a, $b) => ($b['nameScore'] ?? 0) <=> ($a['nameScore'] ?? 0));
 
         return $validSheets;
     }
@@ -1058,10 +1124,14 @@ trait HandlesRabParsing
     protected function columnMapError(array $columnMap): ?string
     {
         if (! isset($columnMap['uraian'])) {
-            return 'Kolom Uraian/Deskripsi wajib ada.';
+            return 'Kolom Uraian wajib ada.';
         }
-        if (! isset($columnMap['volume']) || ! isset($columnMap['harga_satuan'])) {
-            return 'Kolom Volume dan Harga Satuan wajib ada agar nilai RAB dapat divalidasi.';
+        // REQUIRE volume AND (harga_satuan OR jumlah)
+        if (! isset($columnMap['volume'])) {
+            return 'Kolom Volume wajib ada.';
+        }
+        if (! isset($columnMap['harga_satuan']) && ! isset($columnMap['jumlah'])) {
+            return 'Kolom Harga Satuan atau Jumlah wajib ada.';
         }
         return null;
     }

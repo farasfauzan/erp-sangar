@@ -31,8 +31,8 @@ export default function GoodsReceipt() {
                 api.get('/api/goods-receipts', {}, { silent: true }),
                 api.get('/api/pos', {}, { silent: true }),
             ]);
-            setReceipts(grData);
-            setPos(poData);
+            setReceipts(grData.data || grData);
+            setPos(poData.data || poData);
         } catch (err) {
             // errors logged silently
         } finally {

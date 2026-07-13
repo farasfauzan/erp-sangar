@@ -165,6 +165,7 @@ class ExecuteRabImportJob implements ShouldQueue
                         $batch = [];
                     }
                 }
+                break; // Only process the first valid sheet (highest score)
             }
 
             if ($batch !== []) {

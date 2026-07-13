@@ -7,8 +7,8 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class GeneralLedger extends Model
-    use HasFactory;
 {
+    use HasFactory;
     protected $fillable = [
         'journal_number',
         'transaction_date',

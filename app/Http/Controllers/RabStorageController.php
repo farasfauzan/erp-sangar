@@ -26,6 +26,7 @@ class RabStorageController extends Controller
             ->when($projectId, fn($q) => $q->where('project_id', $projectId))
             ->orderByDesc('created_at')
             ->paginate(15)
+            ->withPath('/rab-storage' . ($projectId ? '?project_id=' . $projectId : ''))
             ->through(fn($job) => [
                 'id' => $job->id,
                 'project_id' => $job->project_id,
@@ -47,6 +48,7 @@ class RabStorageController extends Controller
                 ->where('version', RabBudget::where('project_id', $projectId)->max('version') ?? 1)
                 ->orderBy('id')
                 ->paginate(50)
+                ->withPath('/rab-storage?project_id=' . $projectId)
                 ->through(fn($item) => [
                     'id' => $item->id,
                     'code_item' => $item->code_item,

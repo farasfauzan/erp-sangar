@@ -29,6 +29,10 @@ class OpnameController extends Controller
             'opname_number' => 'required|string|unique:opnames,opname_number',
             'date' => 'required|date',
             'progress_percentage' => 'required|numeric|min:0.01|max:100',
+            'progress_pct' => 'nullable|integer|min:0|max:100',
+            'progress_items' => 'nullable|array',
+            'progress_items.*.description' => 'required|string',
+            'progress_items.*.done' => 'required|boolean',
             'amount' => 'required|numeric|min:0.01',
         ]);
 

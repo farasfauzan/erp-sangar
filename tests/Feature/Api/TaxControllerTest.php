@@ -139,8 +139,8 @@ class TaxControllerTest extends TestCase
         ])
             ->assertOk()
             ->assertJsonPath('data.subtotal', 1000000)
-            ->assertJsonPath('data.tax_amount', 110000.0)
-            ->assertJsonPath('data.total', 1110000.0)
+            ->assertJsonPath('data.tax_amount', 110000)
+            ->assertJsonPath('data.total', 1110000)
             ->assertJsonPath('data.tax.name', 'PPN');
     }
 

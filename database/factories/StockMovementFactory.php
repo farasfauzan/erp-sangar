@@ -18,7 +18,7 @@ class StockMovementFactory extends Factory
     {
         return [
             'inventory_stock_id' => InventoryStock::factory(),
-            'type'               => fake()->randomElement(['adjustment', 'receipt', 'transfer']),
+            'type'               => fake()->randomElement(['in', 'out', 'adjustment']),
             'quantity'           => fake()->numberBetween(-100, 100),
             'reference_type'     => null,
             'reference_id'       => null,

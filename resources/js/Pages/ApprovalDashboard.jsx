@@ -36,7 +36,13 @@ export default function ApprovalDashboard() {
                 api.get('/api/invoices', {}, { silent: true }),
                 api.get('/api/fund-requests', {}, { silent: true }),
             ]);
-            setData({ pos, spks, opnames, invoices, funds });
+            setData({
+                pos: pos?.data || pos,
+                spks: spks?.data || spks,
+                opnames: opnames?.data || opnames,
+                invoices: invoices?.data || invoices,
+                funds: funds?.data || funds
+            });
         } catch (err) {
             toast.error('Gagal memuat data: ' + (err.response?.data?.message || err.message));
         } finally {

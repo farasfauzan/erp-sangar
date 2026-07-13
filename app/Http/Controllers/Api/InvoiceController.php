@@ -209,6 +209,32 @@ class InvoiceController extends Controller
         ]);
     }
 
+    public function cashflowApprove(Request $request, $id)
+    {
+        $validated = $request->validate([
+            'cashflow_status' => ['required', Rule::in(['APPROVED', 'REJECTED'])],
+        ]);
+
+        $invoice = Invoice::findOrFail($id);
+        if ($invoice->cashflow_status !== 'PENDING') {
+            return response()->json(['message' => 'Invoice sudah diproses cashflow.'], 422);
+        }
+
+        WorkflowState::require(
+            $invoice->status,
+            ['PENDING_CASHFLOW', 'APPROVED'],
+            'Invoice belum siap untuk approval cashflow.'
+        );
+
+        $invoice->update(['cashflow_status' => $validated['cashflow_status']]);
+        $this->log($request, $invoice, 'CASHFLOW_' . $validated['cashflow_status']);
+
+        return response()->json([
+            'message' => 'Status cashflow invoice diperbarui.',
+            'data' => $invoice,
+        ]);
+    }
+
     private function log(Request $request, Invoice $invoice, string $action): void
     {
         ApprovalLog::create([
