@@ -1,7 +1,7 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head } from '@inertiajs/react';
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import { useApi } from '@/hooks/useApi';
 
 export default function InvoiceAdmin() {
     const [invoices, setInvoices] = useState([]);
@@ -10,6 +10,7 @@ export default function InvoiceAdmin() {
     const [loading, setLoading] = useState(true);
     const [showForm, setShowForm] = useState(false);
     const [message, setMessage] = useState('');
+    const api = useApi();
 
     const [form, setForm] = useState({
         invoiceable_type: 'App\\Models\\PurchaseOrder',
@@ -21,26 +22,33 @@ export default function InvoiceAdmin() {
     });
 
     useEffect(() => {
-        Promise.all([
-            axios.get('/api/invoices'),
-            axios.get('/api/pos'),
-            axios.get('/api/opnames'),
-        ]).then(([invRes, poRes, opnameRes]) => {
-            setInvoices(invRes.data);
-            setPos(poRes.data);
-            setOpnames(opnameRes.data);
-            setLoading(false);
-        });
+        loadData();
     }, []);
+
+    const loadData = async () => {
+        try {
+            const [invData, poData, opnameData] = await Promise.all([
+                api.get('/api/invoices', {}, { silent: true }),
+                api.get('/api/pos', {}, { silent: true }),
+                api.get('/api/opnames', {}, { silent: true }),
+            ]);
+            setInvoices(invData);
+            setPos(poData);
+            setOpnames(opnameData);
+        } catch (err) {
+            // errors logged silently
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
-            const res = await axios.post('/api/invoices', form);
-            setMessage(res.data.message);
+            const res = await api.post('/api/invoices', form);
+            setMessage(res.message || 'Invoice berhasil dibuat.');
             setShowForm(false);
-            const invRes = await axios.get('/api/invoices');
-            setInvoices(invRes.data);
+            await loadData();
             setForm({
                 ...form,
                 invoice_number: 'INV-' + Math.floor(Math.random() * 100000),
@@ -146,11 +154,12 @@ export default function InvoiceAdmin() {
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tipe Tagihan</th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nilai (Rp)</th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Aksi</th>
                                     </tr>
                                 </thead>
                                 <tbody className="bg-white divide-y divide-gray-200">
                                     {invoices.length === 0 ? (
-                                        <tr><td colSpan="4" className="px-6 py-4 text-center text-gray-500">Belum ada tagihan.</td></tr>
+                                        <tr><td colSpan="5" className="px-6 py-4 text-center text-gray-500">Belum ada tagihan.</td></tr>
                                     ) : (
                                         invoices.map((inv) => (
                                             <tr key={inv.id}>
@@ -168,6 +177,14 @@ export default function InvoiceAdmin() {
                                                     }`}>
                                                         {inv.status}
                                                     </span>
+                                                </td>
+                                                <td className="px-6 py-4 text-sm">
+                                                    <button
+                                                        onClick={() => window.open(`/invoices/${inv.id}/print`, '_blank')}
+                                                        className="text-indigo-600 hover:text-indigo-900 font-medium"
+                                                    >
+                                                        🖨️ Cetak
+                                                    </button>
                                                 </td>
                                             </tr>
                                         ))

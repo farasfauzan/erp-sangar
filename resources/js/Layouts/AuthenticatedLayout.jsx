@@ -44,6 +44,8 @@ export default function Authenticated({ header, children }) {
             suppliers: 'Supplier',
             create: 'Tambah Supplier',
             edit: 'Edit Supplier',
+            inventory: 'Inventaris',
+            movements: 'Pergerakan Stok',
             'profile.edit': 'Profile',
         };
         return nameMap[last] || last.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
@@ -130,7 +132,7 @@ export default function Authenticated({ header, children }) {
         }
     };
 
-    const menus = getRoleMenus();
+    const menus = [...getRoleMenus(), { name: 'Inventaris', route: 'inventory', icon: '📦' }];
 
     // Role badge color mapping
     const getRoleBadgeClasses = () => {

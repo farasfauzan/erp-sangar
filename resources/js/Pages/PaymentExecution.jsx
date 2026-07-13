@@ -1,7 +1,7 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
-import axios from 'axios';
+import { useApi } from '@/hooks/useApi';
 import { useToast } from '@/Components/ui/Toast';
 import ConfirmModal from '@/Components/ui/ConfirmModal';
 
@@ -14,6 +14,7 @@ export default function PaymentExecution() {
     const [loading, setLoading] = useState(true);
     const [payment, setPayment] = useState({ payment_method: 'TRANSFER', payment_date: today(), proof_of_payment: '' });
     const [confirmState, setConfirmState] = useState({ open: false, url: '', message: '' });
+    const api = useApi();
     const toast = useToast();
 
     useEffect(() => {
@@ -22,13 +23,18 @@ export default function PaymentExecution() {
 
     const fetchData = async () => {
         setLoading(true);
-        const [invoiceRes, fundRes] = await Promise.all([
-            axios.get('/api/invoices'),
-            axios.get('/api/fund-requests'),
-        ]);
-        setInvoices(invoiceRes.data);
-        setFunds(fundRes.data);
-        setLoading(false);
+        try {
+            const [invoiceData, fundData] = await Promise.all([
+                api.get('/api/invoices', {}, { silent: true }),
+                api.get('/api/fund-requests', {}, { silent: true }),
+            ]);
+            setInvoices(invoiceData);
+            setFunds(fundData);
+        } catch (err) {
+            // error handled silently
+        } finally {
+            setLoading(false);
+        }
     };
 
     const updatePayment = (field, value) => setPayment((current) => ({ ...current, [field]: value }));
@@ -41,12 +47,12 @@ export default function PaymentExecution() {
         const { url } = confirmState;
         setConfirmState({ open: false, url: '', message: '' });
         try {
-            await axios.post(url, payment);
+            await api.post(url, payment);
             toast.success('Pembayaran dan bukti bayar dicatat.');
             setPayment((current) => ({ ...current, proof_of_payment: '' }));
             await fetchData();
         } catch (err) {
-            toast.error(err.response?.data?.message || 'Gagal mengeksekusi pembayaran.');
+            // toast shown by useApi
         }
     };
 

@@ -1,7 +1,8 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
-import axios from 'axios';
+import { useApi } from '@/hooks/useApi';
+import { useProjects } from '@/hooks/useProjects';
 import { useToast } from '@/Components/ui/Toast';
 import ConfirmModal from '@/Components/ui/ConfirmModal';
 import InputPromptModal from '@/Components/ui/InputPromptModal';
@@ -14,28 +15,28 @@ export default function ApprovalDashboard() {
     const [rabPending, setRabPending] = useState([]);
     const [rabProjectId, setRabProjectId] = useState('');
     const [rabSelected, setRabSelected] = useState(new Set());
-    const [projects, setProjects] = useState([]);
+    const { projects } = useProjects();
     const [loading, setLoading] = useState(true);
     const [confirmState, setConfirmState] = useState({ open: false, title: '', message: '', onConfirm: null });
     const [promptState, setPromptState] = useState({ open: false, defaultValue: '', callback: null });
+    const api = useApi();
     const toast = useToast();
 
     useEffect(() => {
         fetchData();
-        axios.get('/api/projects').then(res => setProjects(res.data.data || res.data || [])).catch(() => { });
     }, []);
 
     const fetchData = async () => {
         setLoading(true);
         try {
             const [pos, spks, opnames, invoices, funds] = await Promise.all([
-                axios.get('/api/pos'),
-                axios.get('/api/spks'),
-                axios.get('/api/opnames'),
-                axios.get('/api/invoices'),
-                axios.get('/api/fund-requests'),
+                api.get('/api/pos', {}, { silent: true }),
+                api.get('/api/spks', {}, { silent: true }),
+                api.get('/api/opnames', {}, { silent: true }),
+                api.get('/api/invoices', {}, { silent: true }),
+                api.get('/api/fund-requests', {}, { silent: true }),
             ]);
-            setData({ pos: pos.data, spks: spks.data, opnames: opnames.data, invoices: invoices.data, funds: funds.data });
+            setData({ pos, spks, opnames, invoices, funds });
         } catch (err) {
             toast.error('Gagal memuat data: ' + (err.response?.data?.message || err.message));
         } finally {
@@ -46,8 +47,8 @@ export default function ApprovalDashboard() {
     const fetchRabPending = async (projectId) => {
         if (!projectId) { setRabPending([]); setRabSelected(new Set()); return; }
         try {
-            const res = await axios.get('/api/rab', { params: { project_id: projectId, all: 1 } });
-            const items = (res.data.data || []).filter(i => i.status === 'PENDING');
+            const res = await api.get('/api/rab', { project_id: projectId, all: 1 }, { silent: true });
+            const items = (res.data || []).filter(i => i.status === 'PENDING');
             setRabPending(items);
             setRabSelected(new Set());
         } catch { setRabPending([]); }
@@ -71,9 +72,9 @@ export default function ApprovalDashboard() {
             onConfirm: async () => {
                 setConfirmState({ open: false, title: '', message: '', onConfirm: null });
                 try {
-                    await axios.post('/api/rab/approve', { item_ids: [...rabSelected] });
+                    await api.post('/api/rab/approve', { item_ids: [...rabSelected] });
                     fetchRabPending(rabProjectId);
-                } catch (err) { toast.error(err.response?.data?.message || 'Gagal approve.'); }
+                } catch (err) { /* toast shown by useApi */ }
             }
         });
     };
@@ -87,9 +88,9 @@ export default function ApprovalDashboard() {
             onConfirm: async () => {
                 setConfirmState({ open: false, title: '', message: '', onConfirm: null });
                 try {
-                    await axios.post('/api/rab/reject', { item_ids: [...rabSelected] });
+                    await api.post('/api/rab/reject', { item_ids: [...rabSelected] });
                     fetchRabPending(rabProjectId);
-                } catch (err) { toast.error(err.response?.data?.message || 'Gagal reject.'); }
+                } catch (err) { /* toast shown by useApi */ }
             }
         });
     };
@@ -103,9 +104,9 @@ export default function ApprovalDashboard() {
             onConfirm: async () => {
                 setConfirmState({ open: false, title: '', message: '', onConfirm: null });
                 try {
-                    await axios.post('/api/rab/approve', { project_id: parseInt(rabProjectId) });
+                    await api.post('/api/rab/approve', { project_id: parseInt(rabProjectId) });
                     fetchRabPending(rabProjectId);
-                } catch (err) { toast.error(err.response?.data?.message || 'Gagal approve.'); }
+                } catch (err) { /* toast shown by useApi */ }
             }
         });
     };
@@ -118,11 +119,9 @@ export default function ApprovalDashboard() {
             onConfirm: async () => {
                 setConfirmState({ open: false, title: '', message: '', onConfirm: null });
                 try {
-                    await axios[method](url, payload);
+                    await api[method](url, payload);
                     await fetchData();
-                } catch (err) {
-                    toast.error(err.response?.data?.message || 'Aksi gagal.');
-                }
+                } catch (err) { /* toast shown by useApi */ }
             }
         });
     };

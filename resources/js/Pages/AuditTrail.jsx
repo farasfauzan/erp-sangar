@@ -1,16 +1,17 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head } from '@inertiajs/react';
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import { useApi } from '@/hooks/useApi';
 
 export default function AuditTrail() {
     const [logs, setLogs] = useState([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState('');
+    const api = useApi();
 
     useEffect(() => {
-        axios.get('/api/audit-logs').then((res) => {
-            setLogs(res.data);
+        api.get('/api/audit-logs', {}, { silent: true }).then((data) => {
+            setLogs(data);
             setLoading(false);
         }).catch(() => setLoading(false));
     }, []);

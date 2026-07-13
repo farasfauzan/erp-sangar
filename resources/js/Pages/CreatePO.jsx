@@ -1,14 +1,16 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, useForm } from '@inertiajs/react';
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import { useApi } from '@/hooks/useApi';
+import { useProjects } from '@/hooks/useProjects';
 
 export default function CreatePO() {
-    const [projects, setProjects] = useState([]);
+    const { projects } = useProjects();
     const [rabBudgets, setRabBudgets] = useState([]);
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState('');
     const [selectedProject, setSelectedProject] = useState('');
+    const api = useApi();
 
     const { data, setData, post, processing, errors, reset } = useForm({
         project_id: '',
@@ -20,14 +22,10 @@ export default function CreatePO() {
     });
 
     useEffect(() => {
-        axios.get('/api/projects').then(res => setProjects(res.data));
-    }, []);
-
-    useEffect(() => {
         if (selectedProject) {
-            axios.get(`/api/projects/${selectedProject}`).then(res => {
-                setRabBudgets(res.data.rab_budgets || []);
-            });
+            api.get(`/api/projects/${selectedProject}`, {}, { silent: true }).then(res => {
+                setRabBudgets(res.rab_budgets || []);
+            }).catch(() => {});
         }
     }, [selectedProject]);
 
@@ -75,8 +73,8 @@ export default function CreatePO() {
         e.preventDefault();
         setLoading(true);
         try {
-            const res = await axios.post('/api/pos', data);
-            setMessage(res.data.message);
+            const res = await api.post('/api/pos', data);
+            setMessage(res.message || 'PO berhasil dibuat.');
             reset('supplier_name', 'items');
             setData('po_number', 'PO-' + Math.floor(Math.random() * 100000));
         } catch (err) {

@@ -1,7 +1,7 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head } from '@inertiajs/react';
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import { useApi } from '@/hooks/useApi';
 
 export default function GoodsReceipt() {
     const [receipts, setReceipts] = useState([]);
@@ -9,6 +9,7 @@ export default function GoodsReceipt() {
     const [loading, setLoading] = useState(true);
     const [showForm, setShowForm] = useState(false);
     const [message, setMessage] = useState('');
+    const api = useApi();
 
     const [form, setForm] = useState({
         purchase_order_id: '',
@@ -21,15 +22,23 @@ export default function GoodsReceipt() {
     });
 
     useEffect(() => {
-        Promise.all([
-            axios.get('/api/goods-receipts'),
-            axios.get('/api/pos'),
-        ]).then(([grRes, poRes]) => {
-            setReceipts(grRes.data);
-            setPos(poRes.data);
-            setLoading(false);
-        });
+        loadData();
     }, []);
+
+    const loadData = async () => {
+        try {
+            const [grData, poData] = await Promise.all([
+                api.get('/api/goods-receipts', {}, { silent: true }),
+                api.get('/api/pos', {}, { silent: true }),
+            ]);
+            setReceipts(grData);
+            setPos(poData);
+        } catch (err) {
+            // errors logged silently
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -39,16 +48,10 @@ export default function GoodsReceipt() {
             return;
         }
         try {
-            const res = await axios.post('/api/goods-receipts', { ...form, items });
-            setMessage(res.data.message);
+            const res = await api.post('/api/goods-receipts', { ...form, items });
+            setMessage(res.message || 'Penerimaan barang berhasil dicatat.');
             setShowForm(false);
-            // Refresh list
-            const [grRes, poRes] = await Promise.all([
-                axios.get('/api/goods-receipts'),
-                axios.get('/api/pos'),
-            ]);
-            setReceipts(grRes.data);
-            setPos(poRes.data);
+            await loadData();
             setForm({
                 ...form,
                 receipt_number: 'GR-' + Math.floor(Math.random() * 100000),

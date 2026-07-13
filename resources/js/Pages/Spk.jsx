@@ -16,7 +16,7 @@ const initialForm = () => ({
 const money = (value) => `Rp ${Number(value || 0).toLocaleString('id-ID')}`;
 
 export default function Spk() {
-    const [projects, setProjects] = useState([]);
+    const { projects } = useProjects();
     const [spks, setSpks] = useState([]);
     const [form, setForm] = useState(initialForm);
     const [loading, setLoading] = useState(true);
@@ -24,18 +24,15 @@ export default function Spk() {
     const [showForm, setShowForm] = useState(false);
     const [message, setMessage] = useState('');
     const [confirmState, setConfirmState] = useState({ open: false, spk: null });
+    const api = useApi();
 
     const load = async () => {
         setLoading(true);
         try {
-            const [projectResponse, spkResponse] = await Promise.all([
-                axios.get('/api/projects'),
-                axios.get('/api/spks'),
-            ]);
-            const projectList = projectResponse.data?.data ?? projectResponse.data ?? [];
-            setProjects(projectList);
-            setSpks(spkResponse.data?.data ?? spkResponse.data ?? []);
-            setForm((current) => ({ ...current, project_id: current.project_id || String(projectList[0]?.id || '') }));
+            const spkData = await api.get('/api/spks', {}, { silent: true });
+            const spkList = spkData?.data ?? spkData ?? [];
+            setSpks(spkList);
+            setForm((current) => ({ ...current, project_id: current.project_id || String(projects[0]?.id || '') }));
         } catch (error) {
             setMessage(error.response?.data?.message || 'Gagal memuat data SPK.');
         } finally {
@@ -54,8 +51,8 @@ export default function Spk() {
         setSaving(true);
         setMessage('');
         try {
-            const response = await axios.post('/api/spks', form);
-            setMessage(response.data?.message || 'Draft SPK berhasil dibuat.');
+            const response = await api.post('/api/spks', form);
+            setMessage(response?.message || 'Draft SPK berhasil dibuat.');
             setShowForm(false);
             setForm({ ...initialForm(), project_id: form.project_id || String(projects[0]?.id || '') });
             await load();
@@ -74,8 +71,8 @@ export default function Spk() {
         const spk = confirmState.spk;
         setConfirmState({ open: false, spk: null });
         try {
-            const response = await axios.put(`/api/spks/${spk.id}/submit`);
-            setMessage(response.data?.message || 'SPK dikirim untuk approval.');
+            const response = await api.put(`/api/spks/${spk.id}/submit`);
+            setMessage(response?.message || 'SPK dikirim untuk approval.');
             await load();
         } catch (error) {
             setMessage(error.response?.data?.message || 'Gagal mengirim SPK.');
@@ -136,7 +133,12 @@ export default function Spk() {
                                             <td className="px-4 py-3 text-sm text-gray-600">{spk.subcon_name}</td>
                                             <td className="px-4 py-3 text-right text-sm text-gray-600">{money(spk.total_amount)}</td>
                                             <td className="px-4 py-3"><Status value={spk.status} /></td>
-                                            <td className="px-4 py-3">{spk.status === 'DRAFT' ? <button onClick={() => submit(spk)} className="rounded bg-emerald-600 px-3 py-1 text-sm text-white">Kirim Approval</button> : '-'}</td>
+                                            <td className="px-4 py-3">
+                                                <div className="flex items-center gap-2">
+                                                    {spk.status === 'DRAFT' && <button onClick={() => submit(spk)} className="rounded bg-emerald-600 px-3 py-1 text-sm text-white">Kirim Approval</button>}
+                                                    <button onClick={() => window.open(`/spks/${spk.id}/print`, '_blank')} className="rounded bg-gray-100 px-3 py-1 text-sm text-indigo-600 hover:bg-gray-200">🖨️ Cetak</button>
+                                                </div>
+                                            </td>
                                         </tr>) : <tr><td colSpan="6" className="px-4 py-5 text-center text-sm text-gray-500">Belum ada SPK.</td></tr>}
                                     </tbody>
                                 </table>

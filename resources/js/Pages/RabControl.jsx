@@ -1,26 +1,21 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head } from '@inertiajs/react';
-import axios from 'axios';
+import { useApi } from '@/hooks/useApi';
+import { useProjects } from '@/hooks/useProjects';
 import { useEffect, useMemo, useState } from 'react';
 import ConfirmModal from '@/Components/ui/ConfirmModal';
 
 const money = (value) => `Rp ${Number(value || 0).toLocaleString('id-ID')}`;
 
 export default function RabControl() {
-    const [projects, setProjects] = useState([]);
+    const { projects } = useProjects();
     const [projectId, setProjectId] = useState('');
     const [items, setItems] = useState([]);
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
     const [message, setMessage] = useState('');
     const [confirmState, setConfirmState] = useState({ open: false, endpoint: '', message: '' });
-
-    const loadProjects = async () => {
-        const response = await axios.get('/api/projects');
-        const list = response.data?.data ?? response.data ?? [];
-        setProjects(list);
-        setProjectId((current) => current || String(list[0]?.id || ''));
-    };
+    const api = useApi();
 
     const loadItems = async (id) => {
         if (!id) {
@@ -30,8 +25,8 @@ export default function RabControl() {
 
         setLoading(true);
         try {
-            const response = await axios.get('/api/rab', { params: { project_id: id, per_page: 500 } });
-            const payload = response.data?.data;
+            const response = await api.get('/api/rab', { project_id: id, per_page: 500 }, { silent: true });
+            const payload = response?.data;
             setItems(payload?.data ?? payload ?? []);
         } catch (error) {
             setItems([]);
@@ -42,11 +37,10 @@ export default function RabControl() {
     };
 
     useEffect(() => {
-        loadProjects().catch(() => {
-            setMessage('Gagal memuat daftar proyek.');
-            setLoading(false);
-        });
-    }, []);
+        if (projects.length > 0 && !projectId) {
+            setProjectId(String(projects[0]?.id || ''));
+        }
+    }, [projects]);
 
     useEffect(() => {
         loadItems(projectId);
@@ -70,8 +64,8 @@ export default function RabControl() {
         setSubmitting(true);
         setMessage('');
         try {
-            const response = await axios.post(endpoint, { project_id: projectId });
-            setMessage(response.data?.message || 'Status RAB berhasil diperbarui.');
+            const response = await api.post(endpoint, { project_id: projectId });
+            setMessage(response?.message || 'Status RAB berhasil diperbarui.');
             await loadItems(projectId);
         } catch (error) {
             setMessage(error.response?.data?.message || 'Aksi RAB gagal dilakukan.');

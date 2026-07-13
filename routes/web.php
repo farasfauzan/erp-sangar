@@ -104,8 +104,32 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/admin/users', fn () => Inertia::render('UserManagement'))->name('admin.users');
 });
 
+// Inventory routes
+Route::middleware(['auth', 'verified'])->group(function () {
+    Route::get('/inventory', fn () => Inertia::render('InventoryDashboard'))->name('inventory');
+    Route::get('/inventory/{id}/movements', fn ($id) => Inertia::render('StockMovements', ['id' => (int) $id]))->name('inventory.movements');
+});
+
 // Purchase Order detail & edit routes
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/purchase-orders/{id}', fn ($id) => Inertia::render('PurchaseOrderDetail', ['id' => $id]))->name('purchase-orders.show');
     Route::get('/purchase-orders/{id}/edit', fn ($id) => Inertia::render('PurchaseOrderEdit', ['id' => $id]))->name('purchase-orders.edit');
+});
+
+// Print routes — pass data as Inertia props so pages render standalone
+Route::middleware(['auth', 'verified'])->group(function () {
+    Route::get('/purchase-orders/{id}/print', function ($id) {
+        $po = \App\Models\PurchaseOrder::with(['items.rabBudget', 'project'])->findOrFail($id);
+        return Inertia::render('Print/PurchaseOrderPrint', ['po' => $po]);
+    })->name('purchase-orders.print');
+
+    Route::get('/invoices/{id}/print', function ($id) {
+        $invoice = \App\Models\Invoice::with(['invoiceable', 'transactions'])->findOrFail($id);
+        return Inertia::render('Print/InvoicePrint', ['invoice' => $invoice]);
+    })->name('invoices.print');
+
+    Route::get('/spks/{id}/print', function ($id) {
+        $spk = \App\Models\Spk::with(['project', 'progress'])->findOrFail($id);
+        return Inertia::render('Print/SpkPrint', ['spk' => $spk]);
+    })->name('spks.print');
 });

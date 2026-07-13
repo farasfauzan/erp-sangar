@@ -1,130 +1,292 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head } from '@inertiajs/react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
+import { useToast } from '@/Components/ui/Toast';
+import Card from '@/Components/ui/Card';
+import Button from '@/Components/ui/Button';
+import FormField from '@/Components/ui/FormField';
+import DataTable from '@/Components/ui/DataTable';
+import StatusBadge from '@/Components/ui/StatusBadge';
+import PageHeader from '@/Components/ui/PageHeader';
+
+const fmt = (v) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(v ?? 0);
 
 export default function FakturPajak() {
-    const [invoices, setInvoices] = useState([]);
+    const toast = useToast();
+    const [taxes, setTaxes] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [selected, setSelected] = useState(null);
-    const [fakturForm, setFakturForm] = useState({
-        nomor_faktur: '',
-        tanggal_faktur: new Date().toISOString().split('T')[0],
-        npwp_penjual: '',
+    const [showForm, setShowForm] = useState(false);
+    const [submitting, setSubmitting] = useState(false);
+    const [calculating, setCalculating] = useState(false);
+    const [calcResult, setCalcResult] = useState(null);
+    const [form, setForm] = useState({
+        tax_type: 'PPN',
+        rate: '11',
+        base_amount: '',
+        description: '',
+        tax_date: new Date().toISOString().split('T')[0],
+        npwp: '',
         nama_penjual: '',
-        dpp: '',
-        ppn: '',
-        status: 'draft',
+        nomor_faktur: '',
     });
-    const [message, setMessage] = useState('');
+
+    const fetchTaxes = useCallback(async () => {
+        setLoading(true);
+        try {
+            const res = await axios.get('/api/taxes');
+            setTaxes(Array.isArray(res.data) ? res.data : res.data?.data || []);
+        } catch (err) {
+            toast.error('Gagal memuat data pajak: ' + (err.response?.data?.message || err.message));
+        } finally {
+            setLoading(false);
+        }
+    }, [toast]);
 
     useEffect(() => {
-        axios.get('/api/invoices').then((res) => {
-            setInvoices(res.data);
-            setLoading(false);
-        });
-    }, []);
+        fetchTaxes();
+    }, [fetchTaxes]);
 
-    const handleGenerate = (inv) => {
-        setSelected(inv);
-        const dpp = parseFloat(inv.amount || 0);
-        setFakturForm({
-            ...fakturForm,
-            dpp: dpp,
-            ppn: (dpp * 0.11).toFixed(2),
-        });
+    const handleChange = (field, value) => {
+        setForm((prev) => ({ ...prev, [field]: value }));
+    };
+
+    const handleCalculate = async () => {
+        if (!form.base_amount || parseFloat(form.base_amount) <= 0) {
+            toast.error('Masukkan DPP terlebih dahulu');
+            return;
+        }
+        setCalculating(true);
+        setCalcResult(null);
+        try {
+            const res = await axios.post('/api/taxes/calculate', {
+                base_amount: parseFloat(form.base_amount),
+                rate: parseFloat(form.rate) || 11,
+                tax_type: form.tax_type,
+            });
+            setCalcResult(res.data);
+            toast.success('Perhitungan pajak berhasil');
+        } catch (err) {
+            toast.error('Gagal menghitung pajak: ' + (err.response?.data?.message || err.message));
+        } finally {
+            setCalculating(false);
+        }
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        if (!form.base_amount || parseFloat(form.base_amount) <= 0) {
+            toast.error('Masukkan DPP yang valid');
+            return;
+        }
+        setSubmitting(true);
         try {
-            // ponnytail: POST to /api/faktur-pajak when backend endpoint exists
-            setMessage('Faktur pajak berhasil dibuat untuk invoice ' + selected.invoice_number);
-            setSelected(null);
-        } catch {
-            setMessage('Gagal membuat faktur pajak');
+            await axios.post('/api/taxes', {
+                tax_type: form.tax_type,
+                rate: parseFloat(form.rate) || 11,
+                base_amount: parseFloat(form.base_amount),
+                tax_amount: calcResult?.tax_amount || parseFloat(form.base_amount) * (parseFloat(form.rate) || 11) / 100,
+                description: form.description,
+                tax_date: form.tax_date,
+                npwp: form.npwp,
+                nama_penjual: form.nama_penjual,
+                nomor_faktur: form.nomor_faktur,
+            });
+            toast.success('Faktur pajak berhasil disimpan');
+            setShowForm(false);
+            setForm({
+                tax_type: 'PPN',
+                rate: '11',
+                base_amount: '',
+                description: '',
+                tax_date: new Date().toISOString().split('T')[0],
+                npwp: '',
+                nama_penjual: '',
+                nomor_faktur: '',
+            });
+            setCalcResult(null);
+            fetchTaxes();
+        } catch (err) {
+            toast.error('Gagal menyimpan faktur pajak: ' + (err.response?.data?.message || err.message));
+        } finally {
+            setSubmitting(false);
         }
     };
 
-    const fmt = (v) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(v ?? 0);
+    const columns = [
+        { key: 'nomor_faktur', label: 'No. Faktur', render: (v) => v || '—' },
+        { key: 'tax_date', label: 'Tanggal', sortable: true },
+        { key: 'npwp', label: 'NPWP', render: (v) => v || '—' },
+        { key: 'nama_penjual', label: 'Nama Penjual', render: (v) => v || '—' },
+        { key: 'tax_type', label: 'Jenis Pajak', render: (v) => <StatusBadge status={v || 'PPN'} /> },
+        { key: 'rate', label: 'Tarif (%)', className: 'text-right', headerClassName: 'text-right', render: (v) => `${v || 0}%` },
+        { key: 'base_amount', label: 'DPP', className: 'text-right', headerClassName: 'text-right', render: (v) => fmt(v) },
+        { key: 'tax_amount', label: 'PPN', className: 'text-right', headerClassName: 'text-right', render: (v) => fmt(v) },
+        { key: 'status', label: 'Status', render: (v) => <StatusBadge status={v || 'draft'} /> },
+    ];
+
+    const totalDpp = taxes.reduce((sum, t) => sum + parseFloat(t.base_amount || 0), 0);
+    const totalPpn = taxes.reduce((sum, t) => sum + parseFloat(t.tax_amount || 0), 0);
 
     return (
         <AuthenticatedLayout header={<h2 className="text-xl font-semibold text-gray-800">Faktur Pajak</h2>}>
             <Head title="Faktur Pajak" />
-            <div className="py-6 max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-4">
-                {message && <div className="bg-green-100 text-green-800 px-4 py-2 rounded">{message}</div>}
+            <div className="py-6 max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
+                <PageHeader
+                    title="Faktur Pajak"
+                    subtitle="Kelola faktur pajak dan hitung PPN"
+                    actions={
+                        <Button onClick={() => setShowForm(!showForm)}>
+                            {showForm ? 'Tutup Form' : '+ Buat Faktur Pajak'}
+                        </Button>
+                    }
+                />
 
-                <div className="bg-white shadow rounded-lg overflow-hidden">
-                    <div className="p-4 border-b">
-                        <h3 className="font-semibold">Invoice Tersedia</h3>
-                        <p className="text-sm text-gray-500">Pilih invoice untuk generate faktur pajak</p>
-                    </div>
-                    {loading ? (
-                        <div className="p-6 text-center text-gray-500">Memuat data...</div>
-                    ) : (
-                        <table className="w-full text-sm">
-                            <thead className="bg-gray-50">
-                                <tr>
-                                    <th className="px-4 py-2 text-left">No. Invoice</th>
-                                    <th className="px-4 py-2 text-left">Tanggal</th>
-                                    <th className="px-4 py-2 text-right">Amount</th>
-                                    <th className="px-4 py-2 text-center">Aksi</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {invoices.map((inv) => (
-                                    <tr key={inv.id} className="border-t hover:bg-gray-50">
-                                        <td className="px-4 py-2">{inv.invoice_number}</td>
-                                        <td className="px-4 py-2">{inv.invoice_date}</td>
-                                        <td className="px-4 py-2 text-right">{fmt(inv.amount)}</td>
-                                        <td className="px-4 py-2 text-center">
-                                            <button onClick={() => handleGenerate(inv)} className="text-blue-600 hover:underline text-xs">Generate Faktur</button>
-                                        </td>
-                                    </tr>
-                                ))}
-                                {invoices.length === 0 && (
-                                    <tr><td colSpan={4} className="px-4 py-6 text-center text-gray-400">Belum ada invoice</td></tr>
-                                )}
-                            </tbody>
-                        </table>
-                    )}
+                {/* Summary Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <Card>
+                        <div className="text-center">
+                            <p className="text-sm text-gray-500">Total Faktur</p>
+                            <p className="text-2xl font-bold text-gray-900">{taxes.length}</p>
+                        </div>
+                    </Card>
+                    <Card>
+                        <div className="text-center">
+                            <p className="text-sm text-gray-500">Total DPP</p>
+                            <p className="text-2xl font-bold text-indigo-600">{fmt(totalDpp)}</p>
+                        </div>
+                    </Card>
+                    <Card>
+                        <div className="text-center">
+                            <p className="text-sm text-gray-500">Total PPN</p>
+                            <p className="text-2xl font-bold text-emerald-600">{fmt(totalPpn)}</p>
+                        </div>
+                    </Card>
                 </div>
 
-                {selected && (
-                    <div className="bg-white shadow rounded-lg p-6">
-                        <h3 className="font-semibold mb-4">Form Faktur Pajak — {selected.invoice_number}</h3>
-                        <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-sm font-medium mb-1">No. Faktur Pajak</label>
-                                <input type="text" value={fakturForm.nomor_faktur} onChange={(e) => setFakturForm({ ...fakturForm, nomor_faktur: e.target.value })} className="w-full border rounded px-3 py-2" required />
+                {/* Create Form */}
+                {showForm && (
+                    <Card title="Form Faktur Pajak Baru" subtitle="Isi data untuk membuat faktur pajak baru">
+                        <form onSubmit={handleSubmit} className="space-y-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <FormField label="No. Faktur Pajak" required>
+                                    <input
+                                        type="text"
+                                        value={form.nomor_faktur}
+                                        onChange={(e) => handleChange('nomor_faktur', e.target.value)}
+                                        className="w-full border-gray-300 rounded-lg shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                                        placeholder="010.000-XX.XXXXXXXX"
+                                        required
+                                    />
+                                </FormField>
+                                <FormField label="Tanggal Faktur">
+                                    <input
+                                        type="date"
+                                        value={form.tax_date}
+                                        onChange={(e) => handleChange('tax_date', e.target.value)}
+                                        className="w-full border-gray-300 rounded-lg shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                                    />
+                                </FormField>
+                                <FormField label="NPWP Penjual" required>
+                                    <input
+                                        type="text"
+                                        value={form.npwp}
+                                        onChange={(e) => handleChange('npwp', e.target.value)}
+                                        className="w-full border-gray-300 rounded-lg shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                                        placeholder="00.000.000.0-000.000"
+                                        required
+                                    />
+                                </FormField>
+                                <FormField label="Nama Penjual" required>
+                                    <input
+                                        type="text"
+                                        value={form.nama_penjual}
+                                        onChange={(e) => handleChange('nama_penjual', e.target.value)}
+                                        className="w-full border-gray-300 rounded-lg shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                                        required
+                                    />
+                                </FormField>
+                                <FormField label="Jenis Pajak">
+                                    <select
+                                        value={form.tax_type}
+                                        onChange={(e) => handleChange('tax_type', e.target.value)}
+                                        className="w-full border-gray-300 rounded-lg shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                                    >
+                                        <option value="PPN">PPN</option>
+                                        <option value="PPH21">PPh 21</option>
+                                        <option value="PPH23">PPh 23</option>
+                                        <option value="PPH4">PPh 4(2)</option>
+                                    </select>
+                                </FormField>
+                                <FormField label="Tarif (%)">
+                                    <input
+                                        type="number"
+                                        value={form.rate}
+                                        onChange={(e) => handleChange('rate', e.target.value)}
+                                        className="w-full border-gray-300 rounded-lg shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                                        step="0.01"
+                                        min="0"
+                                        max="100"
+                                    />
+                                </FormField>
+                                <FormField label="DPP (Dasar Pengenaan Pajak)" required>
+                                    <input
+                                        type="number"
+                                        value={form.base_amount}
+                                        onChange={(e) => handleChange('base_amount', e.target.value)}
+                                        className="w-full border-gray-300 rounded-lg shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                                        placeholder="0"
+                                        required
+                                    />
+                                </FormField>
+                                <FormField label="Keterangan">
+                                    <input
+                                        type="text"
+                                        value={form.description}
+                                        onChange={(e) => handleChange('description', e.target.value)}
+                                        className="w-full border-gray-300 rounded-lg shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                                        placeholder="Keterangan tambahan..."
+                                    />
+                                </FormField>
                             </div>
-                            <div>
-                                <label className="block text-sm font-medium mb-1">Tanggal Faktur</label>
-                                <input type="date" value={fakturForm.tanggal_faktur} onChange={(e) => setFakturForm({ ...fakturForm, tanggal_faktur: e.target.value })} className="w-full border rounded px-3 py-2" />
+
+                            {/* Tax Calculation Preview */}
+                            <div className="flex items-center gap-3 pt-2">
+                                <Button variant="outline" onClick={handleCalculate} loading={calculating}>
+                                    Hitung Pajak
+                                </Button>
+                                {calcResult && (
+                                    <div className="flex items-center gap-4 text-sm bg-gray-50 rounded-lg px-4 py-2">
+                                        <span className="text-gray-500">DPP: <strong className="text-gray-900">{fmt(calcResult.base_amount)}</strong></span>
+                                        <span className="text-gray-400">|</span>
+                                        <span className="text-gray-500">PPN ({calcResult.rate}%): <strong className="text-emerald-600">{fmt(calcResult.tax_amount)}</strong></span>
+                                        <span className="text-gray-400">|</span>
+                                        <span className="text-gray-500">Total: <strong className="text-indigo-600">{fmt(calcResult.total_amount || (parseFloat(calcResult.base_amount) + parseFloat(calcResult.tax_amount)))}</strong></span>
+                                    </div>
+                                )}
                             </div>
-                            <div>
-                                <label className="block text-sm font-medium mb-1">NPWP Penjual</label>
-                                <input type="text" value={fakturForm.npwp_penjual} onChange={(e) => setFakturForm({ ...fakturForm, npwp_penjual: e.target.value })} className="w-full border rounded px-3 py-2" placeholder="00.000.000.0-000.000" />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium mb-1">Nama Penjual</label>
-                                <input type="text" value={fakturForm.nama_penjual} onChange={(e) => setFakturForm({ ...fakturForm, nama_penjual: e.target.value })} className="w-full border rounded px-3 py-2" />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium mb-1">DPP (Dasar Pengenaan Pajak)</label>
-                                <input type="number" value={fakturForm.dpp} onChange={(e) => setFakturForm({ ...fakturForm, dpp: e.target.value, ppn: (parseFloat(e.target.value) * 0.11).toFixed(2) })} className="w-full border rounded px-3 py-2" />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium mb-1">PPN (11%)</label>
-                                <input type="number" value={fakturForm.ppn} className="w-full border rounded px-3 py-2 bg-gray-100" readOnly />
-                            </div>
-                            <div className="col-span-2 flex gap-2">
-                                <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Simpan Faktur</button>
-                                <button type="button" onClick={() => setSelected(null)} className="bg-gray-300 text-gray-700 px-4 py-2 rounded hover:bg-gray-400">Batal</button>
+
+                            <div className="flex gap-3 pt-2 border-t">
+                                <Button type="submit" loading={submitting}>
+                                    Simpan Faktur Pajak
+                                </Button>
+                                <Button variant="outline" type="button" onClick={() => { setShowForm(false); setCalcResult(null); }}>
+                                    Batal
+                                </Button>
                             </div>
                         </form>
-                    </div>
+                    </Card>
                 )}
+
+                {/* Tax List */}
+                <Card title="Daftar Faktur Pajak" subtitle="Semua faktur pajak yang tercatat">
+                    <DataTable
+                        columns={columns}
+                        data={taxes}
+                        loading={loading}
+                        emptyMessage="Belum ada faktur pajak tercatat"
+                    />
+                </Card>
             </div>
         </AuthenticatedLayout>
     );

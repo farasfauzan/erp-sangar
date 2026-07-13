@@ -1,7 +1,7 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head } from '@inertiajs/react';
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import { useApi } from '@/hooks/useApi';
 
 export default function OpnamePage() {
     const [opnames, setOpnames] = useState([]);
@@ -9,6 +9,7 @@ export default function OpnamePage() {
     const [loading, setLoading] = useState(true);
     const [showForm, setShowForm] = useState(false);
     const [message, setMessage] = useState('');
+    const api = useApi();
 
     const [form, setForm] = useState({
         spk_id: '',
@@ -19,15 +20,23 @@ export default function OpnamePage() {
     });
 
     useEffect(() => {
-        Promise.all([
-            axios.get('/api/opnames'),
-            axios.get('/api/spks'),
-        ]).then(([opnRes, spkRes]) => {
-            setOpnames(opnRes.data);
-            setSpks(spkRes.data);
-            setLoading(false);
-        });
+        loadData();
     }, []);
+
+    const loadData = async () => {
+        try {
+            const [opnData, spkData] = await Promise.all([
+                api.get('/api/opnames', {}, { silent: true }),
+                api.get('/api/spks', {}, { silent: true }),
+            ]);
+            setOpnames(opnData);
+            setSpks(spkData);
+        } catch (err) {
+            // errors logged silently
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const approvedSpks = spks.filter((spk) => spk.status === 'APPROVED');
     const selectedSpk = approvedSpks.find(s => s.id === parseInt(form.spk_id));
@@ -41,11 +50,10 @@ export default function OpnamePage() {
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
-            const res = await axios.post('/api/opnames', form);
-            setMessage(res.data.message);
+            const res = await api.post('/api/opnames', form);
+            setMessage(res.message || 'Opname berhasil dicatat.');
             setShowForm(false);
-            const opnRes = await axios.get('/api/opnames');
-            setOpnames(opnRes.data);
+            await loadData();
             setForm({
                 ...form,
                 opname_number: 'OPN-' + Math.floor(Math.random() * 100000),

@@ -1,7 +1,8 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
-import axios from 'axios';
+import { useApi } from '@/hooks/useApi';
+import { useProjects } from '@/hooks/useProjects';
 import { useToast } from '@/Components/ui/Toast';
 import InputPromptModal from '@/Components/ui/InputPromptModal';
 
@@ -9,11 +10,12 @@ const money = (value) => `Rp ${Number(value || 0).toLocaleString('id-ID')}`;
 const requestNumber = () => `PD-${new Date().toISOString().slice(0, 10).replaceAll('-', '')}-${Date.now().toString().slice(-4)}`;
 
 export default function FundRequestPage() {
-    const [projects, setProjects] = useState([]);
+    const { projects } = useProjects();
     const [funds, setFunds] = useState([]);
     const [loading, setLoading] = useState(true);
     const [form, setForm] = useState({ project_id: '', request_number: requestNumber(), amount: '', description: '' });
     const [promptState, setPromptState] = useState({ open: false, fund: null, defaultValue: '' });
+    const api = useApi();
     const toast = useToast();
 
     useEffect(() => {
@@ -22,14 +24,15 @@ export default function FundRequestPage() {
 
     const fetchData = async () => {
         setLoading(true);
-        const [projectRes, fundRes] = await Promise.all([
-            axios.get('/api/projects'),
-            axios.get('/api/fund-requests'),
-        ]);
-        setProjects(projectRes.data);
-        setFunds(fundRes.data);
-        setForm((current) => ({ ...current, project_id: current.project_id || projectRes.data[0]?.id || '' }));
-        setLoading(false);
+        try {
+            const fundData = await api.get('/api/fund-requests', {}, { silent: true });
+            setFunds(fundData);
+            setForm((current) => ({ ...current, project_id: current.project_id || projects[0]?.id || '' }));
+        } catch (err) {
+            // error handled silently
+        } finally {
+            setLoading(false);
+        }
     };
 
     const updateForm = (field, value) => setForm((current) => ({ ...current, [field]: value }));
@@ -37,12 +40,12 @@ export default function FundRequestPage() {
     const submit = async (e) => {
         e.preventDefault();
         try {
-            await axios.post('/api/fund-requests', form);
+            await api.post('/api/fund-requests', form);
             setForm({ project_id: projects[0]?.id || '', request_number: requestNumber(), amount: '', description: '' });
             await fetchData();
             toast.success('Permohonan dana dikirim untuk approval.');
         } catch (err) {
-            toast.error(err.response?.data?.message || 'Gagal membuat permohonan dana.');
+            // toast shown by useApi
         }
     };
 
@@ -54,10 +57,10 @@ export default function FundRequestPage() {
         const fund = promptState.fund;
         setPromptState({ open: false, fund: null, defaultValue: '' });
         try {
-            await axios.put(`/api/fund-requests/${fund.id}/lpj`, { lpj_notes });
+            await api.put(`/api/fund-requests/${fund.id}/lpj`, { lpj_notes });
             await fetchData();
         } catch (err) {
-            toast.error(err.response?.data?.message || 'Gagal mengirim LPJ.');
+            // toast shown by useApi
         }
     };
 

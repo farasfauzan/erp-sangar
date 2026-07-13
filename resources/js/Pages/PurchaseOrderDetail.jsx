@@ -152,7 +152,7 @@ export default function PurchaseOrderDetail() {
     };
 
     const handlePrint = () => {
-        window.print();
+        window.open(`/purchase-orders/${poId}/print`, '_blank');
     };
 
     const formatCurrency = (amount) => `Rp ${Number(amount || 0).toLocaleString('id-ID')}`;
