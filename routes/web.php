@@ -66,6 +66,10 @@ Route::get('/rab-control', function () {
     return Inertia::render('RabControl');
 })->middleware(['auth', 'verified'])->name('rab-control');
 
+Route::get('/rab-import', function () {
+    return Inertia::render('RabImport');
+})->middleware(['auth', 'verified'])->name('rab-import');
+
 Route::get('/rab-storage', [\App\Http\Controllers\RabStorageController::class, 'index'])
     ->middleware(['auth', 'verified'])
     ->name('rab-storage');
@@ -81,6 +85,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/rab/auto-import', [\App\Http\Controllers\Api\RabBudgetController::class, 'autoImport']);
     Route::get('/rab/import-job/{id}', [\App\Http\Controllers\Api\RabBudgetController::class, 'getImportStatus']);
     Route::post('/rab/import-job/{id}/confirm', [\App\Http\Controllers\Api\RabBudgetController::class, 'confirmImport']);
+    Route::post('/rab/import-job/{id}/revalidate', [\App\Http\Controllers\Api\RabBudgetController::class, 'revalidateImport']);
     Route::post('/rab/import-async', [\App\Http\Controllers\Api\RabBudgetController::class, 'importAsync']);
     Route::get('/projects/{projectId}/rab', [\App\Http\Controllers\Api\RabBudgetController::class, 'index']);
     Route::post('/rab/submit-for-approval', [\App\Http\Controllers\Api\RabBudgetController::class, 'submitForApproval']);

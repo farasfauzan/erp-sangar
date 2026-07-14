@@ -11,6 +11,7 @@ class RabImportJob extends Model
         'file_path',
         'file_name',
         'file_type',
+        'sheet_name',
         'status',
         'total_rows',
         'processed_rows',

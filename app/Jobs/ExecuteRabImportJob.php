@@ -42,7 +42,7 @@ class ExecuteRabImportJob implements ShouldQueue
             }
 
             // 1. Identify all valid sheets and columns again
-            $rawResult = $this->parseRaw($job->file_path, $job->file_type, 100);
+            $rawResult = $this->parseRaw($job->file_path, $job->file_type, 100, $job->sheet_name);
             $sheets = $rawResult['sheets'];
 
             $validSheets = $this->findValidSheets($sheets);

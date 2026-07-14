@@ -24,6 +24,7 @@ use App\Http\Controllers\Api\BastController;
 use App\Http\Controllers\Api\TaxController;
 use App\Http\Controllers\Api\EfakturController;
 use App\Http\Controllers\Api\FinancialReportController;
+use App\Http\Controllers\Api\RabImportController;
 
 Route::middleware(['auth:web', 'verified'])->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\ValidateCsrfToken::class])->group(function () {
     Route::get('/user', function (Request $request) {
@@ -42,6 +43,16 @@ Route::middleware(['auth:web', 'verified'])->withoutMiddleware([\Illuminate\Foun
         Route::delete('/projects/{id}', [ProjectController::class, 'destroy']);
     });
 
+    // ─── RAB Import ────────────────────────────────────────────────────
+    Route::middleware('role:ADMIN,ENGINEER,MGR_KOMERSIAL')->group(function () {
+        Route::post('/rab/import/upload', [RabImportController::class, 'upload']);
+        Route::post('/rab/import/preview', [RabImportController::class, 'preview']);
+        Route::post('/rab/import/validate', [RabImportController::class, 'validateImport']);
+        Route::post('/rab/import', [RabImportController::class, 'import']);
+        Route::post('/rab/import/auto', [RabImportController::class, 'autoImport']);
+        Route::get('/rab/import/projects', [RabImportController::class, 'projects']);
+    });
+
     // ─── RAB Budgets ──────────────────────────────────────────────────
     Route::middleware('role:ADMIN,LAPANGAN,ENGINEER,PURCHASING_LEGAL,VERIFIKATOR_KEU,MGR_KOMERSIAL,KEU_KANTOR,PAJAK,ACCOUNTING')->group(function () {
         Route::get('/rab', [RabBudgetController::class, 'index']);
@@ -55,7 +66,6 @@ Route::middleware(['auth:web', 'verified'])->withoutMiddleware([\Illuminate\Foun
         Route::put('/rab/{id}', [RabBudgetController::class, 'update']);
         Route::patch('/rab/{id}', [RabBudgetController::class, 'update']);
         Route::delete('/rab/{id}', [RabBudgetController::class, 'destroy']);
-        Route::post('/rab/import', [RabBudgetController::class, 'autoImport']);
         Route::post('/rab/auto-import', [RabBudgetController::class, 'autoImport']);
         Route::post('/rab/ai-categorize', [RabBudgetController::class, 'aiCategorize']);
     });

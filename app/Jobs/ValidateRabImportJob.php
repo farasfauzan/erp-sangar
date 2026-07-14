@@ -32,7 +32,7 @@ class ValidateRabImportJob implements ShouldQueue
 
         try {
             // 1. Initial parse to identify all valid sheets and columns
-            $rawResult = $this->parseRaw($job->file_path, $job->file_type, 100);
+            $rawResult = $this->parseRaw($job->file_path, $job->file_type, 100, $job->sheet_name);
             $sheets = $rawResult['sheets'];
 
             $validSheets = $this->findValidSheets($sheets);
@@ -238,6 +238,8 @@ class ValidateRabImportJob implements ShouldQueue
                 'added' => array_slice($added, 0, 50), // limits diff detail payload size
                 'updated' => array_slice($updated, 0, 50),
                 'deleted' => array_slice($deleted, 0, 50),
+                'available_sheets' => array_map(fn($s) => $s['sheetName'], $validSheets),
+                'selected_sheet' => $job->sheet_name,
             ];
 
             $job->update([
