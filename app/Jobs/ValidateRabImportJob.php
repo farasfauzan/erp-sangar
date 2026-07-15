@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\Log;
 
 class ValidateRabImportJob implements ShouldQueue
 {
-    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels, HandlesRabParsing;
+    use Dispatchable, HandlesRabParsing, InteractsWithQueue, Queueable, SerializesModels;
 
     protected $jobId;
 
@@ -26,7 +26,9 @@ class ValidateRabImportJob implements ShouldQueue
     public function handle(): void
     {
         $job = RabImportJob::find($this->jobId);
-        if (! $job) return;
+        if (! $job) {
+            return;
+        }
 
         $job->update(['status' => RabImportJob::STATUS_PROCESSING]);
 
@@ -36,11 +38,13 @@ class ValidateRabImportJob implements ShouldQueue
             $sheets = $rawResult['sheets'];
 
             $validSheets = $this->findValidSheets($sheets);
+            $multiSheetImport = count($validSheets) > 1;
             if (empty($validSheets)) {
                 $job->update([
                     'status' => RabImportJob::STATUS_FAILED,
                     'errors' => ['Header tidak ditemukan dalam file Excel. Pastikan baris header mengandung kata kunci seperti: uraian, deskripsi, volume, harga, satuan, jumlah, dll.'],
                 ]);
+
                 return;
             }
 
@@ -54,7 +58,10 @@ class ValidateRabImportJob implements ShouldQueue
                     continue; // Skip sheets without required columns
                 }
 
-                \Illuminate\Support\Facades\Log::info('Import using sheet: ' . $sheetInfo['sheetName'] . ' colMap: ' . json_encode($sheetInfo['colMap']));
+                // Bug #2 fix: Reset code counters per sheet to avoid state leaking
+                $this->resetCodeCounters();
+
+                Log::info('Import using sheet: '.$sheetInfo['sheetName'].' colMap: '.json_encode($sheetInfo['colMap']));
                 $currentCategory = $sheetInfo['sheetName']; // default category = sheet name
                 $currentSectionCode = '0101';
                 $currentResourceCategory = null;
@@ -71,21 +78,47 @@ class ValidateRabImportJob implements ShouldQueue
                 ];
 
                 foreach ($this->streamRows($job->file_path, $job->file_type, $sheetInfo['sheetName']) as $idx => $row) {
-                    if ($idx <= $sheetInfo['headerIndex']) continue;
+                    if ($idx <= $sheetInfo['headerIndex']) {
+                        continue;
+                    }
 
                     // Extract columns
                     $descCol = $sheetInfo['colMap']['uraian'] ?? -1;
                     $volCol = $sheetInfo['colMap']['volume'] ?? -1;
                     $priceCol = $sheetInfo['colMap']['harga_satuan'] ?? -1;
                     $kodeCol = $sheetInfo['colMap']['kode'] ?? -1;
-                    $desc = trim((string)($row[$descCol] ?? ''));
+                    $desc = trim((string) ($row[$descCol] ?? ''));
                     $vol = $row[$volCol] ?? null;
                     $price = $row[$priceCol] ?? null;
                     $amount = $row[$sheetInfo['colMap']['jumlah'] ?? -1] ?? null;
-                    $kode = trim((string)($row[$kodeCol] ?? ''));
+                    $kode = trim((string) ($row[$kodeCol] ?? ''));
+
+                    // A hierarchical recap can carry a subtotal on its Roman-
+                    // numeral section row. It is a category boundary, not an
+                    // importable item, even though the amount cell is filled.
+                    if ($this->isNumberedRecapSectionRow($row, $sheetInfo['colMap'], $desc)) {
+                        $currentResourceCategory = null;
+                        $mainSectionCount++;
+                        $subSectionCount = 1;
+                        $itemCount = 1;
+                        $currentSectionCode = str_pad($mainSectionCount, 2, '0', STR_PAD_LEFT).'01';
+                        $currentCategory = $multiSheetImport
+                            ? $sheetInfo['sheetName'].' / '.$desc
+                            : $desc;
+
+                        continue;
+                    }
+
+                    // Only numbered parent rows are imported from hierarchical
+                    // recaps. Resource subheadings between parent rows must not
+                    // leak Material/Upah/Alat into the next parent category.
+                    if ($this->isNumberedRecapItemRow($row, $sheetInfo['colMap'])) {
+                        $currentResourceCategory = null;
+                    }
 
                     // Detect section header: description present, all numeric columns empty/null
-                    if ($desc !== '' && $vol === null && $price === null && $amount === null) {
+                    // Bug #4 fix: Use isEmptyCell() to handle both null and '' from XML streaming
+                    if ($desc !== '' && $this->isEmptyCell($vol) && $this->isEmptyCell($price) && $this->isEmptyCell($amount)) {
                         $resCat = $this->detectResourceCategory($desc);
                         if ($resCat !== null) {
                             $currentResourceCategory = $resCat;
@@ -99,27 +132,33 @@ class ValidateRabImportJob implements ShouldQueue
                                 $subSectionCount++;
                                 $itemCount = 1;
                             }
-                            $currentSectionCode = str_pad($mainSectionCount ?: 1, 2, '0', STR_PAD_LEFT) . str_pad($subSectionCount, 2, '0', STR_PAD_LEFT);
-                            $currentCategory = $desc;
+                            $currentSectionCode = str_pad($mainSectionCount ?: 1, 2, '0', STR_PAD_LEFT).str_pad($subSectionCount, 2, '0', STR_PAD_LEFT);
+                            $currentCategory = $multiSheetImport
+                                ? $sheetInfo['sheetName'].' / '.$desc
+                                : $desc;
                         }
+
                         continue;
                     }
 
                     $normalized = $this->normalizeRabRow($row, $sheetInfo['colMap'], $idx + 1, $currentSectionCode);
-                    
+
                     if (is_array($normalized) && isset($normalized['error'])) {
                         $errors[] = "Sheet '{$sheetInfo['sheetName']}' {$normalized['error']}";
                         if (count($errors) >= 100) {
                             $errors[] = 'Ditemukan lebih dari 100 kesalahan. Membatasi tampilan error.';
                             break 2;
                         }
+
                         continue;
                     }
 
-                    if (! $normalized) continue;
+                    if (! $normalized) {
+                        continue;
+                    }
 
                     // Generate hierarchical or resource code if empty
-                    if (!isset($normalized['code_item']) || $normalized['code_item'] === null || $normalized['code_item'] === '') {
+                    if (! isset($normalized['code_item']) || $normalized['code_item'] === null || $normalized['code_item'] === '') {
                         if ($currentResourceCategory !== null) {
                             $prefix = [
                                 'Material' => 'M',
@@ -127,10 +166,12 @@ class ValidateRabImportJob implements ShouldQueue
                                 'Alat' => 'A',
                                 'Subkon' => 'S',
                             ][$currentResourceCategory] ?? 'M';
-                            $normalized['code_item'] = $prefix . $resourceCounters[$currentResourceCategory]++;
-                            $normalized['category'] = $currentResourceCategory;
+                            $normalized['code_item'] = $prefix.$resourceCounters[$currentResourceCategory]++;
+                            $normalized['category'] = $multiSheetImport
+                                ? $sheetInfo['sheetName'].' / '.$currentResourceCategory
+                                : $currentResourceCategory;
                         } else {
-                            $normalized['code_item'] = $currentSectionCode . str_pad($itemCount++, 2, '0', STR_PAD_LEFT);
+                            $normalized['code_item'] = $currentSectionCode.str_pad($itemCount++, 2, '0', STR_PAD_LEFT);
                             $normalized['category'] = $currentCategory;
                         }
                     } else {
@@ -145,7 +186,7 @@ class ValidateRabImportJob implements ShouldQueue
                     $newItems[] = $normalized;
                     $rowCount++;
                 }
-                break; // Only process the first valid sheet
+                // Bug #1 fix: Do NOT break — process ALL valid sheets
             }
 
             if ($errors !== []) {
@@ -153,17 +194,18 @@ class ValidateRabImportJob implements ShouldQueue
                     'status' => RabImportJob::STATUS_FAILED,
                     'errors' => $errors,
                 ]);
+
                 return;
             }
 
             // 3. Compute differences against the current active version of RAB
             $currentMaxVersion = RabBudget::where('project_id', $job->project_id)->max('version') ?? 0;
-            
+
             $activeRabs = RabBudget::where('project_id', $job->project_id)
                 ->where('version', $currentMaxVersion)
                 ->get()
                 ->keyBy(function ($item) {
-                    return $this->getUniqueKey($item->code_item, $item->description);
+                    return $this->getUniqueKey($item->code_item, $item->description, $item->category);
                 });
 
             $added = [];
@@ -172,12 +214,12 @@ class ValidateRabImportJob implements ShouldQueue
             $seenKeys = [];
 
             foreach ($newItems as $newItem) {
-                $key = $this->getUniqueKey($newItem['code_item'], $newItem['description']);
+                $key = $this->getUniqueKey($newItem['code_item'], $newItem['description'], $newItem['category'] ?? null);
                 $seenKeys[$key] = true;
 
                 if ($activeRabs->has($key)) {
                     $activeItem = $activeRabs->get($key);
-                    
+
                     // Check for changes
                     $hasChanges = false;
                     $changes = [];
@@ -187,9 +229,9 @@ class ValidateRabImportJob implements ShouldQueue
                         $newVal = $newItem[$field];
 
                         if ($field === 'volume' || $field === 'unit_price') {
-                            if (abs((float)$oldVal - (float)$newVal) > 0.0001) {
+                            if (abs((float) $oldVal - (float) $newVal) > 0.0001) {
                                 $hasChanges = true;
-                                $changes[$field] = ['old' => (float)$oldVal, 'new' => (float)$newVal];
+                                $changes[$field] = ['old' => (float) $oldVal, 'new' => (float) $newVal];
                             }
                         } else {
                             if ($oldVal !== $newVal) {
@@ -203,7 +245,7 @@ class ValidateRabImportJob implements ShouldQueue
                         $updated[] = [
                             'code_item' => $newItem['code_item'],
                             'description' => $newItem['description'],
-                            'changes' => $changes
+                            'changes' => $changes,
                         ];
                     }
                 } else {
@@ -238,7 +280,7 @@ class ValidateRabImportJob implements ShouldQueue
                 'added' => array_slice($added, 0, 50), // limits diff detail payload size
                 'updated' => array_slice($updated, 0, 50),
                 'deleted' => array_slice($deleted, 0, 50),
-                'available_sheets' => array_map(fn($s) => $s['sheetName'], $validSheets),
+                'available_sheets' => array_map(fn ($s) => $s['sheetName'], $validSheets),
                 'selected_sheet' => $job->sheet_name,
             ];
 
@@ -250,18 +292,26 @@ class ValidateRabImportJob implements ShouldQueue
             ]);
 
         } catch (\Throwable $e) {
-            Log::error("Validation Job error: " . $e->getMessage() . "\n" . $e->getTraceAsString());
+            Log::error('Validation Job error: '.$e->getMessage()."\n".$e->getTraceAsString());
             $job->update([
                 'status' => RabImportJob::STATUS_FAILED,
-                'errors' => ['Gagal memproses validasi file: ' . $e->getMessage()],
+                'errors' => ['Gagal memproses validasi file: '.$e->getMessage()],
             ]);
         }
     }
 
-    private function getUniqueKey(?string $code, string $description): string
+    private function getUniqueKey(?string $code, string $description, ?string $category = null): string
     {
-        $codeClean = strtolower(trim((string)$code));
+        $codeClean = strtolower(trim((string) $code));
         $descClean = strtolower(trim($description));
-        return $codeClean !== '' ? $codeClean : md5($descClean);
+        $catClean = strtolower(trim((string) $category));
+
+        // Bug #5 fix: Include category in key to avoid collision between
+        // items with same code/description across different RAB sections
+        if ($codeClean !== '') {
+            return $catClean !== '' ? $codeClean.'::'.$catClean : $codeClean;
+        }
+
+        return md5($descClean.'::'.$catClean);
     }
 }
