@@ -69,6 +69,7 @@ class PurchaseOrderController extends Controller
 
         if ($poLevel === 'SUPPLIER') {
             // Supplier PO: supplier + pricing required
+            $rules['supplier_id'] = 'nullable|exists:suppliers,id';
             $rules['supplier_name'] = 'required|string';
             $rules['supplier_address'] = 'nullable|string';
             $rules['supplier_phone'] = 'nullable|string';
@@ -203,7 +204,7 @@ class PurchaseOrderController extends Controller
                     'ENGINEER',
                     'PO Proyek menunggu routing',
                     "PO {$po->po_number} baru dibuat. Verifikasi lalu arahkan ke PO Supplier atau SPK.",
-                    '/approval'
+                    '/approval/needs'
                 );
             }
 

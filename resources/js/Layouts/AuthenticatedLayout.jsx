@@ -34,6 +34,8 @@ export default function Authenticated({ header, children }) {
             opname: 'Input Opname',
             invoicing: 'Input Tagihan',
             approval: 'Approval',
+            needs: 'Verifikasi Kebutuhan',
+            invoices: 'Verifikasi Tagihan',
             'fund-requests': 'LPJ & Permohonan',
             payment: 'Pembayaran',
             'faktur-pajak': 'Faktur Pajak',
@@ -86,8 +88,8 @@ export default function Authenticated({ header, children }) {
                     { name: 'Dashboard Verifikasi', route: 'dashboard' },
                     { name: 'Kontrol RAB', route: 'rab-control' },
                     { name: 'Penyimpanan RAB', route: 'rab-storage' },
-                    { name: 'Verifikasi Kebutuhan', route: 'dashboard' },
-                    { name: 'Verifikasi Tagihan', route: 'approval' },
+                    { name: 'Verifikasi Kebutuhan', route: 'approval.needs' },
+                    { name: 'Verifikasi Tagihan', route: 'approval.invoices' },
                 ];
             case 'PURCHASING_LEGAL':
                 return [

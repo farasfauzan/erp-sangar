@@ -11,11 +11,13 @@ export default function CreatePO() {
     const [message, setMessage] = useState('');
     const [selectedProject, setSelectedProject] = useState('');
     const [sourcePos, setSourcePos] = useState([]);
+    const [suppliers, setSuppliers] = useState([]);
     const api = useApi();
 
     const { data, setData, post, processing, errors, reset } = useForm({
         project_id: '',
         parent_po_id: '',
+        supplier_id: '',
         po_number: 'PO-' + Math.floor(Math.random() * 100000),
         po_level: 'PROJECT',
         date: new Date().toISOString().split('T')[0],
@@ -32,6 +34,12 @@ export default function CreatePO() {
     });
 
     const isProjectLevel = data.po_level === 'PROJECT';
+
+    useEffect(() => {
+        api.get('/api/suppliers', { per_page: 100 }, { silent: true })
+            .then((response) => setSuppliers(response?.data?.data || []))
+            .catch(() => setSuppliers([]));
+    }, []);
 
     useEffect(() => {
         if (selectedProject) {
@@ -63,6 +71,22 @@ export default function CreatePO() {
             unit_price: 0,
             total_price: 0,
         })));
+    };
+
+    const selectSupplier = (supplierId) => {
+        const supplier = suppliers.find((item) => String(item.id) === String(supplierId));
+        if (!supplier) {
+            setData('supplier_id', '');
+            return;
+        }
+        setData({
+            ...data,
+            supplier_id: supplierId,
+            supplier_name: supplier.name,
+            supplier_address: supplier.address || '',
+            supplier_phone: supplier.phone || '',
+            supplier_contact_person: supplier.contact_person || '',
+        });
     };
 
     const addItem = () => {
@@ -125,6 +149,7 @@ export default function CreatePO() {
             if (isProjectLevel) {
                 // Strip pricing for project-level PO
                 delete payload.supplier_name;
+                delete payload.supplier_id;
                 delete payload.supplier_address;
                 delete payload.supplier_phone;
                 delete payload.supplier_contact_person;
@@ -248,6 +273,14 @@ export default function CreatePO() {
                                                     {sourcePos.map((po) => <option key={po.id} value={po.id}>{po.po_number}</option>)}
                                                 </select>
                                                 {!sourcePos.length && <p className="mt-1 text-xs text-amber-700">Belum ada PO Proyek yang diarahkan Engineer ke PO Supplier.</p>}
+                                            </div>
+                                            <div className="col-span-2">
+                                                <label className="block text-sm font-medium text-gray-700">Ambil dari Master Supplier</label>
+                                                <select value={data.supplier_id} onChange={(e) => selectSupplier(e.target.value)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                                                    <option value="">-- Pilih supplier terdaftar --</option>
+                                                    {suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.code ? `${supplier.code} — ` : ''}{supplier.name}</option>)}
+                                                </select>
+                                                <p className="mt-1 text-xs text-gray-500">Alamat, telepon, dan PIC akan terisi otomatis; data PO tetap dapat disesuaikan bila diperlukan.</p>
                                             </div>
                                             <div>
                                                 <label className="block text-sm font-medium text-gray-700">Nama Supplier *</label>

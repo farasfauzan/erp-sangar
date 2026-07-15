@@ -111,7 +111,7 @@ class InvoiceController extends Controller
             'ENGINEER',
             'Invoice menunggu verifikasi Engineer',
             "Invoice {$invoice->invoice_number} baru dibuat dan perlu diverifikasi di menu Approval.",
-            '/approval'
+            '/approval/invoices'
         );
 
         return response()->json([

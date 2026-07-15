@@ -50,6 +50,14 @@ Route::get('/approval', function () {
     return Inertia::render('ApprovalDashboard');
 })->middleware(['auth', 'verified', 'role:ADMIN,ENGINEER,VERIFIKATOR_KEU,MGR_KOMERSIAL'])->name('approval');
 
+Route::get('/approval/needs', function () {
+    return Inertia::render('NeedVerification');
+})->middleware(['auth', 'verified', 'role:ADMIN,ENGINEER'])->name('approval.needs');
+
+Route::get('/approval/invoices', function () {
+    return Inertia::render('InvoiceVerification');
+})->middleware(['auth', 'verified', 'role:ADMIN,ENGINEER'])->name('approval.invoices');
+
 Route::get('/payment', function () {
     return Inertia::render('PaymentExecution');
 })->middleware(['auth', 'verified', 'role:ADMIN,KEU_KANTOR'])->name('payment');
