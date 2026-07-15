@@ -183,7 +183,7 @@ export default function InvoiceAdmin() {
                                                         onClick={() => window.open(`/invoices/${inv.id}/print`, '_blank')}
                                                         className="text-indigo-600 hover:text-indigo-900 font-medium"
                                                     >
-                                                        🖨️ Cetak
+                                                        Cetak
                                                     </button>
                                                 </td>
                                             </tr>

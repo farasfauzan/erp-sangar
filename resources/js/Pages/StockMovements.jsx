@@ -221,7 +221,7 @@ export default function StockMovements({ id }) {
                         ]}
                         actions={
                             <Button onClick={() => setShowAdjustModal(true)}>
-                                📝 Penyesuaian Stok
+                                Penyesuaian Stok
                             </Button>
                         }
                     />
@@ -298,7 +298,7 @@ export default function StockMovements({ id }) {
                     </div>
 
                     {/* Movements Table */}
-                    <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+                    <div className="app-panel">
                         <DataTable
                             columns={columns}
                             data={sortedMovements}
@@ -335,7 +335,6 @@ export default function StockMovements({ id }) {
                                         : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
                                 }`}
                             >
-                                <span className="block text-lg">📈</span>
                                 Tambah (Masuk)
                             </button>
                             <button
@@ -347,7 +346,6 @@ export default function StockMovements({ id }) {
                                         : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
                                 }`}
                             >
-                                <span className="block text-lg">📉</span>
                                 Kurangi (Keluar)
                             </button>
                         </div>

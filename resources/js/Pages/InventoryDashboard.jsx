@@ -185,10 +185,7 @@ export default function InventoryDashboard() {
                     {/* Summary Cards */}
                     <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
                         <Card>
-                            <div className="flex items-center gap-4">
-                                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-indigo-100 text-2xl">
-                                    📦
-                                </div>
+                            <div className="border-l-2 border-blue-700 pl-3">
                                 <div>
                                     <p className="text-sm text-gray-500">Total Item</p>
                                     <p className="text-2xl font-bold text-gray-900">{items.length}</p>
@@ -196,10 +193,7 @@ export default function InventoryDashboard() {
                             </div>
                         </Card>
                         <Card>
-                            <div className="flex items-center gap-4">
-                                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-amber-100 text-2xl">
-                                    ⚠️
-                                </div>
+                            <div className="border-l-2 border-amber-600 pl-3">
                                 <div>
                                     <p className="text-sm text-gray-500">Stok Rendah</p>
                                     <p className="text-2xl font-bold text-amber-600">{lowStockCount}</p>
@@ -207,10 +201,7 @@ export default function InventoryDashboard() {
                             </div>
                         </Card>
                         <Card>
-                            <div className="flex items-center gap-4">
-                                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-emerald-100 text-2xl">
-                                    ✅
-                                </div>
+                            <div className="border-l-2 border-emerald-600 pl-3">
                                 <div>
                                     <p className="text-sm text-gray-500">Stok Aman</p>
                                     <p className="text-2xl font-bold text-emerald-600">
@@ -250,7 +241,7 @@ export default function InventoryDashboard() {
                                 size="sm"
                                 onClick={() => setFilter('low_stock')}
                             >
-                                ⚠️ Stok Rendah
+                                Stok Rendah
                                 {lowStockCount > 0 && (
                                     <span className="ml-1 inline-flex h-5 w-5 items-center justify-center rounded-full bg-white text-xs font-bold text-red-600">
                                         {lowStockCount}
@@ -261,7 +252,7 @@ export default function InventoryDashboard() {
                     </div>
 
                     {/* Table */}
-                    <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+                    <div className="app-panel">
                         <DataTable
                             columns={columns}
                             data={sortedItems}

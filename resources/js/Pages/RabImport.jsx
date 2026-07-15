@@ -391,7 +391,7 @@ export default function RabImport() {
                             
                             {validationResult && (
                                 <div className="mb-4 p-4 rounded bg-emerald-50 text-sm">
-                                    <p className="font-medium text-emerald-800">✓ Validasi Berhasil</p>
+                                    <p className="font-medium text-emerald-800">Validasi berhasil</p>
                                     <p>{validationResult.checked_rows} baris dicek, tidak ada error.</p>
                                 </div>
                             )}

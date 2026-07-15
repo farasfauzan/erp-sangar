@@ -42,8 +42,8 @@ export default function ProjectsList({ projectId }) {
                     <Card key={p.id}>
                         <div className="flex justify-between items-start mb-3">
                             <div>
-                                <h4 className="text-base font-bold text-gray-900 font-serif">{p.project_name}</h4>
-                                <p className="text-xs text-gray-500 italic">📍 {p.location || '—'}</p>
+                                <h4 className="text-base font-semibold text-slate-900">{p.project_name}</h4>
+                                <p className="text-xs text-gray-500">{p.location || '—'}</p>
                             </div>
                             <StatusBadge status={p.status} />
                         </div>
@@ -74,7 +74,7 @@ export default function ProjectsList({ projectId }) {
                             </div>
                             <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
                                 <div
-                                    className="h-full bg-gradient-to-r from-amber-500 to-amber-700 transition-all duration-300"
+                                    className="h-full bg-blue-700 transition-all duration-300"
                                     style={{ width: `${Math.min(100, p.progress_percentage)}%` }}
                                 />
                             </div>

@@ -357,9 +357,9 @@ export default function PostingJurnal() {
                                             <tr className={isBalanced ? 'bg-emerald-50' : 'bg-red-50'}>
                                                 <td colSpan={5} className="px-3 py-2 text-center text-sm font-medium">
                                                     {isBalanced ? (
-                                                        <span className="text-emerald-700">✓ Jurnal Balance — Selisih: {fmt(0)}</span>
+                                                        <span className="text-emerald-700">Jurnal seimbang — Selisih: {fmt(0)}</span>
                                                     ) : (
-                                                        <span className="text-red-700">✗ Jurnal Tidak Balance — Selisih: {fmt(Math.abs(totalDebit - totalCredit))}</span>
+                                                        <span className="text-red-700">Jurnal tidak seimbang — Selisih: {fmt(Math.abs(totalDebit - totalCredit))}</span>
                                                     )}
                                                 </td>
                                             </tr>

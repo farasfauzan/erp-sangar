@@ -152,7 +152,7 @@ export default function Spk() {
                                             <td className="px-4 py-3">
                                                 <div className="flex items-center gap-2">
                                                     {spk.status === 'DRAFT' && <button onClick={() => submit(spk)} className="rounded bg-emerald-600 px-3 py-1 text-sm text-white">Kirim Approval</button>}
-                                                    <button onClick={() => window.open(`/spks/${spk.id}/print`, '_blank')} disabled={spk.status !== 'APPROVED'} className={`rounded px-3 py-1 text-sm ${spk.status === 'APPROVED' ? 'bg-gray-100 text-indigo-600 hover:bg-gray-200' : 'bg-gray-50 text-gray-400 cursor-not-allowed'}`}>🖨️ Cetak</button>
+                                                    <button onClick={() => window.open(`/spks/${spk.id}/print`, '_blank')} disabled={spk.status !== 'APPROVED'} className={`rounded px-3 py-1 text-sm ${spk.status === 'APPROVED' ? 'bg-gray-100 text-blue-700 hover:bg-gray-200' : 'bg-gray-50 text-gray-400 cursor-not-allowed'}`}>Cetak</button>
                                                 </div>
                                             </td>
                                         </tr>) : <tr><td colSpan="6" className="px-4 py-5 text-center text-sm text-gray-500">Belum ada SPK.</td></tr>}

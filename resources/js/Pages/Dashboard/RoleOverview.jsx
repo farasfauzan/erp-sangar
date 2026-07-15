@@ -4,19 +4,18 @@ import { Card, LoadingSpinner, EmptyState } from '@/Components/ui';
 
 const fmt = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n ?? 0);
 
-function SummaryCard({ label, value, icon, accent = 'amber' }) {
+function SummaryCard({ label, value, accent = 'amber' }) {
     const borderColors = {
         amber: 'border-l-amber-500',
         orange: 'border-l-orange-600',
         red: 'border-l-red-700',
     };
     return (
-        <div className={`bg-white rounded-lg shadow-sm border border-gray-200 border-l-4 ${borderColors[accent] || borderColors.amber} p-4`}>
-            <div className="flex items-center gap-3">
-                <span className="text-2xl">{icon}</span>
+        <div className={`rounded-md border border-slate-200 border-l-2 bg-white p-4 shadow-sm ${borderColors[accent] || borderColors.amber}`}>
+            <div>
                 <div>
                     <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">{label}</p>
-                    <p className="text-xl font-extrabold text-gray-900 font-serif leading-tight">{value}</p>
+                    <p className="mt-1 text-xl font-semibold leading-tight text-slate-900">{value}</p>
                 </div>
             </div>
         </div>
@@ -67,9 +66,9 @@ export default function RoleOverview({ projectId }) {
     return (
         <div className="flex flex-col gap-5">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <SummaryCard label="Total Anggaran" value={fmt(summary.total_budget)} icon="💰" accent="amber" />
-                <SummaryCard label="Jumlah Item" value={summary.total_items} icon="📋" accent="orange" />
-                <SummaryCard label="Kategori" value={categories.length} icon="🏷️" accent="red" />
+                <SummaryCard label="Total Anggaran" value={fmt(summary.total_budget)} accent="amber" />
+                <SummaryCard label="Jumlah Item" value={summary.total_items} accent="orange" />
+                <SummaryCard label="Kategori" value={categories.length} accent="red" />
             </div>
 
             {catList.length > 0 && (

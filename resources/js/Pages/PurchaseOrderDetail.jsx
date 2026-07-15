@@ -103,11 +103,11 @@ function formatFileSize(bytes) {
 }
 
 function getFileIcon(fileType) {
-    if (!fileType) return '📄';
-    if (fileType.startsWith('image/')) return '🖼️';
-    if (fileType === 'application/pdf') return '📕';
-    if (fileType.includes('spreadsheet') || fileType.includes('excel') || fileType.endsWith('xlsx')) return '📊';
-    return '📄';
+    if (!fileType) return 'FILE';
+    if (fileType.startsWith('image/')) return 'IMG';
+    if (fileType === 'application/pdf') return 'PDF';
+    if (fileType.includes('spreadsheet') || fileType.includes('excel') || fileType.endsWith('xlsx')) return 'XLS';
+    return 'FILE';
 }
 
 function isImageFile(fileType) {
@@ -483,7 +483,7 @@ export default function PurchaseOrderDetail() {
                                         variant="primary"
                                         onClick={() => window.location.href = `/purchase-orders/${poId}/edit`}
                                     >
-                                        ✏️ Edit
+                                        Edit
                                     </Button>
                                 )}
                                 {isPending && (
@@ -493,20 +493,20 @@ export default function PurchaseOrderDetail() {
                                             loading={approving && confirmState.action === 'approve'}
                                             onClick={() => setConfirmState({ open: true, action: 'approve' })}
                                         >
-                                            ✓ Approve
+                                            Setujui
                                         </Button>
                                         <Button
                                             variant="danger"
                                             loading={approving && confirmState.action === 'reject'}
                                             onClick={() => setConfirmState({ open: true, action: 'reject' })}
                                         >
-                                            ✕ Reject
+                                            Tolak
                                         </Button>
                                     </>
                                 )}
                                 {po.status === 'APPROVED' && (
                                     <Button variant="outline" onClick={handlePrint}>
-                                        🖨️ Cetak
+                                        Cetak
                                     </Button>
                                 )}
                             </div>

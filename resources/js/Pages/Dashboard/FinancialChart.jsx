@@ -9,7 +9,7 @@ import { Card, LoadingSpinner, EmptyState } from '@/Components/ui';
 const fmt = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n ?? 0);
 const fmtCompact = (n) => new Intl.NumberFormat('id-ID', { notation: 'compact', maximumFractionDigits: 1 }).format(n ?? 0);
 
-function KpiCard({ label, value, sub, icon, accent = 'amber' }) {
+function KpiCard({ label, value, sub, accent = 'amber' }) {
     const borderColors = {
         amber: 'border-l-amber-500',
         orange: 'border-l-orange-600',
@@ -19,12 +19,11 @@ function KpiCard({ label, value, sub, icon, accent = 'amber' }) {
         brown: 'border-l-amber-800',
     };
     return (
-        <div className={`bg-white rounded-lg shadow-sm border border-gray-200 border-l-4 ${borderColors[accent] || borderColors.amber} p-4`}>
-            <div className="flex items-center gap-3">
-                <span className="text-2xl">{icon}</span>
+        <div className={`rounded-md border border-slate-200 border-l-2 bg-white p-4 shadow-sm ${borderColors[accent] || borderColors.amber}`}>
+            <div>
                 <div className="min-w-0">
                     <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">{label}</p>
-                    <p className="text-lg font-extrabold text-gray-900 font-serif leading-tight">{value}</p>
+                    <p className="mt-1 text-lg font-semibold leading-tight text-slate-900">{value}</p>
                     {sub && <p className="text-xs text-gray-500 mt-0.5">{sub}</p>}
                 </div>
             </div>
@@ -54,7 +53,7 @@ export default function FinancialChart({ projectId }) {
         <div className="flex flex-col gap-5">
             <Card>
                 <div className="flex items-center justify-between gap-4">
-                    <span className="text-sm font-bold text-gray-900 font-serif">Rentang Waktu</span>
+                    <span className="text-sm font-semibold text-slate-900">Rentang Waktu</span>
                     <select
                         value={finRange}
                         onChange={(e) => setFinRange(e.target.value)}
@@ -74,12 +73,12 @@ export default function FinancialChart({ projectId }) {
             ) : finData ? (
                 <>
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                        <KpiCard label="Anggaran" value={fmt(finData.summary?.budget)} icon="💼" accent="amber" />
-                        <KpiCard label="Komitmen" value={fmt(finData.summary?.committed)} sub={`${finData.summary?.commitment_percentage ?? 0}%`} icon="📜" accent="orange" />
-                        <KpiCard label="Dibayar" value={fmt(finData.summary?.paid)} sub={`${finData.summary?.realization_percentage ?? 0}% realisasi`} icon="💳" accent="green" />
-                        <KpiCard label="Sisa Anggaran" value={fmt(finData.summary?.remaining_budget)} icon="🛡️" accent="brown" />
-                        <KpiCard label="Dana Diminta" value={fmt(finData.fund_request?.requested)} icon="🏦" accent="red" />
-                        <KpiCard label="Dana Cair" value={fmt(finData.fund_request?.paid)} icon="💸" accent="yellow" />
+                        <KpiCard label="Anggaran" value={fmt(finData.summary?.budget)} accent="amber" />
+                        <KpiCard label="Komitmen" value={fmt(finData.summary?.committed)} sub={`${finData.summary?.commitment_percentage ?? 0}%`} accent="orange" />
+                        <KpiCard label="Dibayar" value={fmt(finData.summary?.paid)} sub={`${finData.summary?.realization_percentage ?? 0}% realisasi`} accent="green" />
+                        <KpiCard label="Sisa Anggaran" value={fmt(finData.summary?.remaining_budget)} accent="brown" />
+                        <KpiCard label="Dana Diminta" value={fmt(finData.fund_request?.requested)} accent="red" />
+                        <KpiCard label="Dana Cair" value={fmt(finData.fund_request?.paid)} accent="yellow" />
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">

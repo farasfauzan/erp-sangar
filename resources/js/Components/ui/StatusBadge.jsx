@@ -24,7 +24,7 @@ export default function StatusBadge({
 
     return (
         <span
-            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${colors} ${className}`}
+            className={`inline-flex items-center rounded border border-current border-opacity-20 px-2 py-0.5 text-xs font-semibold capitalize ${colors} ${className}`}
         >
             {status}
         </span>

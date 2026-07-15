@@ -46,7 +46,7 @@ export default function InvoicePrint({ invoice }) {
                         onClick={() => window.print()}
                         className="px-5 py-2.5 bg-indigo-600 text-white rounded-lg shadow hover:bg-indigo-700 font-medium"
                     >
-                        🖨️ Cetak
+                        Cetak
                     </button>
                     <button
                         onClick={() => window.history.back()}

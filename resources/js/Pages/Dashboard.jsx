@@ -14,16 +14,16 @@ import { useProjects } from '@/hooks/useProjects';
 import { updateProjectsCache } from '@/hooks/useProjects';
 
 const tabs = [
-    { id: 'import', label: 'Import', icon: '📥' },
-    { id: 'rab', label: 'Data RAB', icon: '📋' },
-    { id: 'summary', label: 'Ringkasan', icon: '📊' },
-    { id: 'executive', label: 'Eksekutif', icon: '👑' },
-    { id: 'financial', label: 'Keuangan', icon: '💰' },
-    { id: 'projects', label: 'Proyek', icon: '🏗️' },
+    { id: 'import', label: 'Import' },
+    { id: 'rab', label: 'Data RAB' },
+    { id: 'summary', label: 'Ringkasan' },
+    { id: 'executive', label: 'Eksekutif' },
+    { id: 'financial', label: 'Keuangan' },
+    { id: 'projects', label: 'Proyek' },
 ];
 
-const inputCls = 'w-full rounded-lg border-gray-300 shadow-sm focus:border-amber-500 focus:ring-amber-500 text-sm';
-const labelCls = 'block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1';
+const inputCls = 'app-field';
+const labelCls = 'app-label';
 
 export default function Dashboard({ auth }) {
     const toast = useToast();
@@ -78,24 +78,25 @@ export default function Dashboard({ auth }) {
 
     return (
         <ErrorBoundary>
-            <AuthenticatedLayout header={<h1 className="text-xl font-bold text-gray-900 text-center">Dashboard</h1>}>
+            <AuthenticatedLayout header={<h1 className="text-xl font-semibold tracking-tight text-slate-900">Dashboard Proyek</h1>}>
                 <Head title="Dashboard" />
-                <div className="min-h-[calc(100vh-120px)] bg-gray-50 pb-14">
-                    <div className="max-w-7xl mx-auto px-6 py-6 flex flex-col gap-6">
+                <div className="min-h-[calc(100vh-120px)] pb-20">
+                    <div className="mx-auto flex max-w-7xl flex-col gap-5 px-4 py-5 sm:px-6 lg:px-8">
                         {/* Project Title */}
-                        <div className="text-center">
-                            <h2 className="text-lg font-bold text-gray-900 font-serif">{projectName}</h2>
-                            {currentProject?.location && <p className="text-xs text-gray-500 italic mt-0.5">📍 {currentProject.location}</p>}
+                        <div className="border-l-2 border-blue-700 pl-4">
+                            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Proyek aktif</p>
+                            <h2 className="mt-1 text-xl font-semibold text-slate-900">{projectName}</h2>
+                            {currentProject?.location && <p className="mt-1 text-sm text-slate-500">{currentProject.location}</p>}
                         </div>
 
                         {/* Project Selector */}
                         {projects.length > 0 && (
-                            <div className="flex flex-wrap gap-2">
+                            <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-4">
                                 {projects.map((p) => (
                                     <button key={p.id} onClick={() => setProjectId(p.id)}
-                                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 border ${p.id === projectId ? 'bg-amber-600 text-white border-amber-700 shadow-md' : 'bg-white text-gray-700 border-gray-200 hover:border-amber-300 hover:bg-amber-50'}`}>
+                                        className={`border px-4 py-2 text-left text-sm font-medium transition-colors ${p.id === projectId ? 'border-blue-700 bg-blue-700 text-white' : 'border-slate-300 bg-white text-slate-700 hover:border-blue-400 hover:text-blue-800'}`}>
                                         <span className="block">{p.project_name || `Project #${p.id}`}</span>
-                                        {p.location && <span className="block text-xs opacity-80 italic">📍 {p.location}</span>}
+                                        {p.location && <span className="mt-0.5 block text-xs opacity-75">{p.location}</span>}
                                     </button>
                                 ))}
                             </div>

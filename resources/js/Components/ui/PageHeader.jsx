@@ -6,7 +6,7 @@ export default function PageHeader({
     className = '',
 }) {
     return (
-        <div className={`mb-6 ${className}`}>
+        <div className={`mb-5 ${className}`}>
             {breadcrumbs && breadcrumbs.length > 0 && (
                 <nav className="mb-2" aria-label="Breadcrumb">
                     <ol className="flex items-center gap-1.5 text-sm text-gray-500">
@@ -20,7 +20,7 @@ export default function PageHeader({
                                 {crumb.href ? (
                                     <a
                                         href={crumb.href}
-                                        className="hover:text-indigo-600 transition-colors"
+                                    className="transition-colors hover:text-blue-700"
                                     >
                                         {crumb.label}
                                     </a>
@@ -36,7 +36,7 @@ export default function PageHeader({
             <div className="flex items-center justify-between gap-4">
                 <div>
                     {title && (
-                        <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
+                        <h1 className="text-2xl font-semibold tracking-tight text-slate-900">{title}</h1>
                     )}
                     {subtitle && (
                         <p className="mt-1 text-sm text-gray-500">{subtitle}</p>

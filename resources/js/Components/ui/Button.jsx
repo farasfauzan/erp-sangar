@@ -1,11 +1,11 @@
 import { forwardRef } from 'react';
 
 const variants = {
-    primary: 'bg-indigo-600 text-white hover:bg-indigo-700 focus:ring-indigo-500',
-    secondary: 'bg-gray-600 text-white hover:bg-gray-700 focus:ring-gray-500',
+    primary: 'border border-blue-700 bg-blue-700 text-white hover:bg-blue-800 focus:ring-blue-600',
+    secondary: 'border border-slate-700 bg-slate-700 text-white hover:bg-slate-800 focus:ring-slate-600',
     danger: 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500',
     success: 'bg-emerald-600 text-white hover:bg-emerald-700 focus:ring-emerald-500',
-    outline: 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 focus:ring-indigo-500',
+    outline: 'border border-slate-300 bg-white text-slate-700 hover:border-slate-400 hover:bg-slate-50 focus:ring-blue-600',
 };
 
 const sizes = {
@@ -37,8 +37,8 @@ const Button = forwardRef(function Button(
             aria-disabled={isDisabled}
             aria-busy={loading}
             className={`
-                inline-flex items-center justify-center font-semibold rounded-lg
-                transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-offset-2
+                inline-flex items-center justify-center rounded-md font-semibold
+                transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-offset-1
                 ${variants[variant] || variants.primary}
                 ${sizes[size] || sizes.md}
                 ${isDisabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}

@@ -56,83 +56,83 @@ export default function Authenticated({ header, children }) {
         switch (roleName) {
             case 'ADMIN':
                 return [
-                    { name: 'Dashboard', route: 'dashboard', icon: '📊' },
-                    { name: 'Kontrol RAB', route: 'rab-control', icon: '📋' },
-                    { name: 'Penyimpanan RAB', route: 'rab-storage', icon: '💾' },
-                    { name: 'Purchase Orders', route: 'po', icon: '🛒' },
-                    { name: 'Supplier', route: 'suppliers', icon: '🏭' },
-                    { name: 'Kontrak SPK', route: 'spk', icon: '📜' },
-                    { name: 'Penerimaan Barang', route: 'goods-receipts', icon: '📦' },
-                    { name: 'Input Opname', route: 'opname', icon: '🏗️' },
-                    { name: 'Input Tagihan', route: 'invoicing', icon: '📥' },
-                    { name: 'Approval', route: 'approval', icon: '✍️' },
-                    { name: 'LPJ & Permohonan', route: 'fund-requests', icon: '💸' },
-                    { name: 'Pembayaran', route: 'payment', icon: '💸' },
-                    { name: 'Kelola User', route: 'admin.users', icon: '👥' },
+                    { name: 'Dashboard', route: 'dashboard' },
+                    { name: 'Kontrol RAB', route: 'rab-control' },
+                    { name: 'Penyimpanan RAB', route: 'rab-storage' },
+                    { name: 'Purchase Orders', route: 'po' },
+                    { name: 'Supplier', route: 'suppliers' },
+                    { name: 'Kontrak SPK', route: 'spk' },
+                    { name: 'Penerimaan Barang', route: 'goods-receipts' },
+                    { name: 'Input Opname', route: 'opname' },
+                    { name: 'Input Tagihan', route: 'invoicing' },
+                    { name: 'Approval', route: 'approval' },
+                    { name: 'LPJ & Permohonan', route: 'fund-requests' },
+                    { name: 'Pembayaran', route: 'payment' },
+                    { name: 'Kelola User', route: 'admin.users' },
                 ];
             case 'LAPANGAN':
                 return [
-                    { name: 'Dashboard Proyek', route: 'dashboard', icon: '📊' },
-                    { name: 'Draft PO', route: 'po', icon: '📝' },
-                    { name: 'Penerimaan Barang', route: 'goods-receipts', icon: '📦' },
-                    { name: 'Input Opname', route: 'opname', icon: '🏗️' },
-                    { name: 'LPJ & Permohonan', route: 'fund-requests', icon: '💸' },
+                    { name: 'Dashboard Proyek', route: 'dashboard' },
+                    { name: 'Draft PO', route: 'po' },
+                    { name: 'Penerimaan Barang', route: 'goods-receipts' },
+                    { name: 'Input Opname', route: 'opname' },
+                    { name: 'LPJ & Permohonan', route: 'fund-requests' },
                 ];
             case 'ENGINEER':
                 return [
-                    { name: 'Dashboard Verifikasi', route: 'dashboard', icon: '📋' },
-                    { name: 'Kontrol RAB', route: 'rab-control', icon: '📋' },
-                    { name: 'Penyimpanan RAB', route: 'rab-storage', icon: '💾' },
-                    { name: 'Verifikasi Kebutuhan', route: 'dashboard', icon: '🔍' },
-                    { name: 'Verifikasi Tagihan', route: 'approval', icon: '✅' },
+                    { name: 'Dashboard Verifikasi', route: 'dashboard' },
+                    { name: 'Kontrol RAB', route: 'rab-control' },
+                    { name: 'Penyimpanan RAB', route: 'rab-storage' },
+                    { name: 'Verifikasi Kebutuhan', route: 'dashboard' },
+                    { name: 'Verifikasi Tagihan', route: 'approval' },
                 ];
             case 'PURCHASING_LEGAL':
                 return [
-                    { name: 'Dashboard Pengadaan', route: 'dashboard', icon: '📊' },
-                    { name: 'Purchase Orders', route: 'po', icon: '🛒' },
-                    { name: 'Supplier', route: 'suppliers', icon: '🏭' },
-                    { name: 'Kontrak SPK', route: 'spk', icon: '📜' },
-                    { name: 'Input Tagihan', route: 'invoicing', icon: '📥' },
+                    { name: 'Dashboard Pengadaan', route: 'dashboard' },
+                    { name: 'Purchase Orders', route: 'po' },
+                    { name: 'Supplier', route: 'suppliers' },
+                    { name: 'Kontrak SPK', route: 'spk' },
+                    { name: 'Input Tagihan', route: 'invoicing' },
                 ];
             case 'VERIFIKATOR_KEU':
                 return [
-                    { name: 'Dashboard Verifikasi', route: 'dashboard', icon: '📊' },
-                    { name: 'Verifikasi Dokumen', route: 'approval', icon: '📑' },
-                    { name: 'Verifikasi LPJ', route: 'approval', icon: '⚖️' },
+                    { name: 'Dashboard Verifikasi', route: 'dashboard' },
+                    { name: 'Verifikasi Dokumen', route: 'approval' },
+                    { name: 'Verifikasi LPJ', route: 'approval' },
                 ];
             case 'MGR_KOMERSIAL':
                 return [
-                    { name: 'Executive Dashboard', route: 'dashboard', icon: '📈' },
-                    { name: 'Kontrol RAB', route: 'rab-control', icon: '📋' },
-                    { name: 'Penyimpanan RAB', route: 'rab-storage', icon: '💾' },
-                    { name: 'Approval PO & SPK', route: 'approval', icon: '✍️' },
-                    { name: 'Approval Cashflow', route: 'approval', icon: '✍️' },
+                    { name: 'Executive Dashboard', route: 'dashboard' },
+                    { name: 'Kontrol RAB', route: 'rab-control' },
+                    { name: 'Penyimpanan RAB', route: 'rab-storage' },
+                    { name: 'Approval PO & SPK', route: 'approval' },
+                    { name: 'Approval Cashflow', route: 'approval' },
                 ];
             case 'KEU_KANTOR':
                 return [
-                    { name: 'Dashboard Arus Kas', route: 'dashboard', icon: '📊' },
-                    { name: 'Daftar Antrean Bayar', route: 'payment', icon: '💳' },
-                    { name: 'Eksekusi Pembayaran', route: 'payment', icon: '💸' },
+                    { name: 'Dashboard Arus Kas', route: 'dashboard' },
+                    { name: 'Daftar Antrean Bayar', route: 'payment' },
+                    { name: 'Eksekusi Pembayaran', route: 'payment' },
                 ];
             case 'PAJAK':
                 return [
-                    { name: 'Dashboard Pajak', route: 'dashboard', icon: '🏛️' },
-                    { name: 'Faktur Pajak', route: 'faktur-pajak', icon: '🧾' },
-                    { name: 'E-Faktur CSV', route: 'e-faktur-csv', icon: '⬇️' },
+                    { name: 'Dashboard Pajak', route: 'dashboard' },
+                    { name: 'Faktur Pajak', route: 'faktur-pajak' },
+                    { name: 'E-Faktur CSV', route: 'e-faktur-csv' },
                 ];
             case 'ACCOUNTING':
                 return [
-                    { name: 'Dashboard Akuntansi', route: 'dashboard', icon: '📊' },
-                    { name: 'Posting Jurnal', route: 'posting-jurnal', icon: '📔' },
-                    { name: 'Laporan Keuangan', route: 'laporan-keuangan', icon: '📉' },
-                    { name: 'Audit Trail', route: 'audit-trail', icon: '🔍' },
+                    { name: 'Dashboard Akuntansi', route: 'dashboard' },
+                    { name: 'Posting Jurnal', route: 'posting-jurnal' },
+                    { name: 'Laporan Keuangan', route: 'laporan-keuangan' },
+                    { name: 'Audit Trail', route: 'audit-trail' },
                 ];
             default:
-                return [{ name: 'Dashboard', route: 'dashboard', icon: '📊' }];
+                return [{ name: 'Dashboard', route: 'dashboard' }];
         }
     };
 
-    const menus = [...getRoleMenus(), { name: 'Inventaris', route: 'inventory', icon: '📦' }];
+    const menus = [...getRoleMenus(), { name: 'Inventaris', route: 'inventory' }];
 
     // Role badge color mapping
     const getRoleBadgeClasses = () => {
@@ -161,7 +161,7 @@ export default function Authenticated({ header, children }) {
     };
 
     return (
-        <div className="h-screen overflow-hidden bg-gray-100 flex">
+        <div className="flex h-screen overflow-hidden bg-slate-100">
             {/* Mobile overlay backdrop */}
             {sidebarOpen && (
                 <div
@@ -173,13 +173,13 @@ export default function Authenticated({ header, children }) {
             {/* Sidebar */}
             <aside
                 className={
-                    'fixed inset-y-0 left-0 z-40 h-screen w-64 bg-gray-900 text-white flex flex-col transition-transform duration-300 ease-in-out ' +
+                    'fixed inset-y-0 left-0 z-40 flex h-screen w-64 flex-col border-r border-slate-800 bg-slate-950 text-white transition-transform duration-300 ease-in-out ' +
                     'lg:static lg:flex-shrink-0 lg:translate-x-0 ' +
                     (sidebarOpen ? 'translate-x-0' : '-translate-x-full')
                 }
             >
                 {/* Sidebar header with logo */}
-                <div className="h-16 flex items-center justify-between border-b border-gray-800 px-4">
+                <div className="flex h-[72px] items-center justify-between border-b border-slate-800 px-4">
                     <Link href="/" className="flex items-center">
                         <ApplicationLogo className="block h-auto w-[215px] max-w-full" />
                     </Link>
@@ -195,7 +195,7 @@ export default function Authenticated({ header, children }) {
                 </div>
 
                 {/* Navigation links */}
-                <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+                <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 py-4">
                     {menus.map((menu, idx) => {
                         const isActive = route().current(menu.route);
                         return (
@@ -203,13 +203,12 @@ export default function Authenticated({ header, children }) {
                                 key={idx}
                                 href={route(menu.route)}
                                 className={
-                                    'flex items-center gap-3 px-4 py-2.5 rounded-md text-sm transition-colors w-full ' +
+                                    'relative flex w-full items-center px-4 py-2.5 text-sm transition-colors ' +
                                     (isActive
-                                        ? 'bg-blue-50 text-blue-700 border-l-4 border-blue-600 font-semibold'
-                                        : 'text-gray-300 hover:bg-gray-800 hover:text-white border-l-4 border-transparent')
+                                        ? 'bg-slate-800 text-white font-semibold before:absolute before:inset-y-2 before:left-0 before:w-0.5 before:bg-blue-400'
+                                        : 'text-slate-300 hover:bg-slate-900 hover:text-white')
                                 }
                             >
-                                <span className="text-base">{menu.icon}</span>
                                 <span>{menu.name}</span>
                             </Link>
                         );
@@ -217,16 +216,16 @@ export default function Authenticated({ header, children }) {
                 </nav>
 
                 {/* User info section at sidebar bottom */}
-                <div className="border-t border-gray-800 p-4">
+                <div className="border-t border-slate-800 p-4">
                     <div className="flex items-center gap-3">
-                        <div className="flex-shrink-0 h-9 w-9 rounded-full bg-gray-700 flex items-center justify-center text-sm font-medium text-white">
+                        <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded bg-slate-800 text-sm font-semibold text-white">
                             {user.name.charAt(0).toUpperCase()}
                         </div>
                         <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-white truncate">{user.name}</p>
                             <span
                                 className={
-                                    'inline-block mt-0.5 px-2 py-0.5 text-xs font-medium rounded-full ' +
+                                    'mt-0.5 inline-block rounded px-2 py-0.5 text-xs font-medium ' +
                                     getRoleBadgeClasses()
                                 }
                             >
@@ -240,7 +239,7 @@ export default function Authenticated({ header, children }) {
             {/* Main Content */}
             <div className="flex-1 flex flex-col overflow-hidden min-w-0">
                 {/* Top navbar */}
-                <nav className="bg-white border-b border-gray-100 shadow-sm">
+                <nav className="border-b border-slate-200 bg-white">
                     <div className="px-4 sm:px-6 lg:px-8">
                         <div className="flex justify-between h-16">
                             {/* Hamburger button - visible on mobile, hidden on lg+ */}
@@ -305,7 +304,7 @@ export default function Authenticated({ header, children }) {
                 </nav>
 
                 {/* Breadcrumb */}
-                <div className="bg-white border-b border-gray-200 px-4 sm:px-6 lg:px-8 py-3">
+                <div className="border-b border-slate-200 bg-white px-4 py-3 sm:px-6 lg:px-8">
                     <nav className="flex items-center text-sm text-gray-500" aria-label="Breadcrumb">
                         <Link href={route('dashboard')} className="hover:text-gray-700 transition-colors">
                             Home
@@ -319,13 +318,13 @@ export default function Authenticated({ header, children }) {
 
                 {/* Header slot */}
                 {header && (
-                    <header className="bg-white shadow">
-                        <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">{header}</div>
+                    <header className="border-b border-slate-200 bg-white">
+                        <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6 lg:px-8">{header}</div>
                     </header>
                 )}
 
                 {/* Page content */}
-                <main className="flex-1 overflow-y-auto bg-gray-100 p-4">
+                <main className="flex-1 overflow-y-auto bg-slate-100">
                     {children}
                 </main>
             </div>

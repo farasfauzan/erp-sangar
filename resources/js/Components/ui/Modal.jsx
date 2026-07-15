@@ -55,7 +55,7 @@ export default function Modal({
         >
             <div
                 ref={contentRef}
-                className={`bg-white rounded-xl shadow-2xl w-full ${sizeClasses[size] || sizeClasses.md} max-h-[90vh] flex flex-col ${className}`}
+                className={`w-full max-h-[90vh] flex flex-col rounded-md border border-slate-200 bg-white shadow-xl ${sizeClasses[size] || sizeClasses.md} ${className}`}
             >
                 {title && (
                     <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">

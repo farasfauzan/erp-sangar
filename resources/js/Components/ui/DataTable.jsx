@@ -22,14 +22,14 @@ export default function DataTable({
         return (
             <span className="ml-1 inline-flex flex-col" aria-hidden="true">
                 <svg
-                    className={`w-3 h-3 ${isActive && sortDirection === 'asc' ? 'text-indigo-600' : 'text-gray-300'}`}
+                    className={`w-3 h-3 ${isActive && sortDirection === 'asc' ? 'text-blue-700' : 'text-gray-300'}`}
                     viewBox="0 0 10 5"
                     fill="currentColor"
                 >
                     <path d="M5 0L10 5H0z" />
                 </svg>
                 <svg
-                    className={`w-3 h-3 -mt-1 ${isActive && sortDirection === 'desc' ? 'text-indigo-600' : 'text-gray-300'}`}
+                    className={`w-3 h-3 -mt-1 ${isActive && sortDirection === 'desc' ? 'text-blue-700' : 'text-gray-300'}`}
                     viewBox="0 0 10 5"
                     fill="currentColor"
                 >
@@ -41,8 +41,8 @@ export default function DataTable({
 
     return (
         <div className={`overflow-x-auto ${className}`}>
-            <table className="min-w-full divide-y divide-gray-200" role="table">
-                <thead className="bg-gray-50">
+            <table className="min-w-full divide-y divide-slate-200" role="table">
+                <thead className="bg-slate-50">
                     <tr>
                         {columns.map((col) => (
                             <th
@@ -50,7 +50,7 @@ export default function DataTable({
                                 scope="col"
                                 onClick={col.sortable ? () => handleSort(col.key) : undefined}
                                 className={`
-                                    px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider
+                                    px-5 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide
                                     ${col.sortable ? 'cursor-pointer select-none hover:text-gray-700' : ''}
                                     ${col.headerClassName || ''}
                                 `}
@@ -72,7 +72,7 @@ export default function DataTable({
                         ))}
                     </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="divide-y divide-slate-200 bg-white">
                     {loading ? (
                         <tr>
                             <td
@@ -95,12 +95,12 @@ export default function DataTable({
                         data.map((row, rowIndex) => (
                             <tr
                                 key={row.id || rowIndex}
-                                className="hover:bg-gray-50 transition-colors"
+                                className="transition-colors hover:bg-slate-50"
                             >
                                 {columns.map((col) => (
                                     <td
                                         key={col.key}
-                                        className={`px-6 py-4 whitespace-nowrap text-sm text-gray-700 ${col.className || ''}`}
+                                        className={`px-5 py-3.5 whitespace-nowrap text-sm text-slate-700 ${col.className || ''}`}
                                     >
                                         {col.render
                                             ? col.render(row[col.key], row, rowIndex)

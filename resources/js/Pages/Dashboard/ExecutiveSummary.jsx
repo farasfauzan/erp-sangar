@@ -19,7 +19,7 @@ const statusColorMap = {
 
 const chartColors = ['#c4942a', '#a0522d', '#8b2e1e', '#6b7a3a', '#6b3a1a', '#dbb45c', '#6b1a10', '#4a5528'];
 
-function KpiCard({ label, value, icon, accent = 'amber' }) {
+function KpiCard({ label, value, accent = 'amber' }) {
     const borderColors = {
         amber: 'border-l-amber-500',
         orange: 'border-l-orange-600',
@@ -29,12 +29,11 @@ function KpiCard({ label, value, icon, accent = 'amber' }) {
         brown: 'border-l-amber-800',
     };
     return (
-        <div className={`bg-white rounded-lg shadow-sm border border-gray-200 border-l-4 ${borderColors[accent] || borderColors.amber} p-4`}>
-            <div className="flex items-center gap-3">
-                <span className="text-2xl">{icon}</span>
+        <div className={`rounded-md border border-slate-200 border-l-2 bg-white p-4 shadow-sm ${borderColors[accent] || borderColors.amber}`}>
+            <div>
                 <div className="min-w-0">
                     <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">{label}</p>
-                    <p className="text-lg font-extrabold text-gray-900 font-serif leading-tight">{value}</p>
+                    <p className="mt-1 text-lg font-semibold leading-tight text-slate-900">{value}</p>
                 </div>
             </div>
         </div>
@@ -74,14 +73,14 @@ export default function ExecutiveSummary({ projectId }) {
     return (
         <div className="flex flex-col gap-5">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <KpiCard label="Total Anggaran" value={fmt(execData.total_budget)} icon="💼" accent="amber" />
-                <KpiCard label="Total Komitmen" value={fmt(execData.total_commitment)} icon="📜" accent="orange" />
-                <KpiCard label="Total Difaktur" value={fmt(execData.total_invoiced)} icon="🧾" accent="red" />
-                <KpiCard label="Total Dibayar" value={fmt(execData.total_paid)} icon="💳" accent="green" />
-                <KpiCard label="Permohonan Dana" value={fmt(execData.total_fund_requests)} icon="🏦" accent="yellow" />
-                <KpiCard label="Menunggu Persetujuan" value={execData.pending_approvals} icon="⏳" accent="brown" />
-                <KpiCard label="Jumlah Proyek" value={execData.project_count} icon="🏛️" accent="amber" />
-                <KpiCard label="Item RAB" value={execData.rab_item_count} icon="📐" accent="orange" />
+                <KpiCard label="Total Anggaran" value={fmt(execData.total_budget)} accent="amber" />
+                <KpiCard label="Total Komitmen" value={fmt(execData.total_commitment)} accent="orange" />
+                <KpiCard label="Total Difaktur" value={fmt(execData.total_invoiced)} accent="red" />
+                <KpiCard label="Total Dibayar" value={fmt(execData.total_paid)} accent="green" />
+                <KpiCard label="Permohonan Dana" value={fmt(execData.total_fund_requests)} accent="yellow" />
+                <KpiCard label="Menunggu Persetujuan" value={execData.pending_approvals} accent="brown" />
+                <KpiCard label="Jumlah Proyek" value={execData.project_count} accent="amber" />
+                <KpiCard label="Item RAB" value={execData.rab_item_count} accent="orange" />
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">

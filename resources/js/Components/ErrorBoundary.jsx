@@ -32,7 +32,7 @@ export default class ErrorBoundary extends Component {
                         onClick={this.handleRetry}
                         style={{
                             padding: '0.5rem 1.25rem',
-                            background: 'linear-gradient(180deg, #8b2e1e 0%, #6b1a10 100%)',
+                            background: '#b91c1c',
                             color: '#fef0d8',
                             fontSize: '0.85rem',
                             fontWeight: 600,

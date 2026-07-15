@@ -189,7 +189,7 @@ export default function SupplierList() {
                     </div>
 
                     {/* Table */}
-                    <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+                    <div className="app-panel">
                         <DataTable
                             columns={columns}
                             data={suppliers}

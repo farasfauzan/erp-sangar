@@ -216,8 +216,8 @@ export default function RabImport({ projectId, projects, currentProject, onProje
                                 ))}
                                 {projects.length === 0 && <option value={1}>Project #1</option>}
                             </select>
-                            <Button variant="outline" size="sm" onClick={onAddProject} title="Tambah Proyek Baru">➕</Button>
-                            <Button variant="outline" size="sm" onClick={onEditProject} title="Edit Proyek Terpilih">✏️</Button>
+                            <Button variant="outline" size="sm" onClick={onAddProject} title="Tambah Proyek Baru">Tambah</Button>
+                            <Button variant="outline" size="sm" onClick={onEditProject} title="Edit Proyek Terpilih">Edit</Button>
                         </div>
                     </div>
                     <div className="flex flex-col gap-1 flex-1 min-w-[200px]">
@@ -245,7 +245,7 @@ export default function RabImport({ projectId, projects, currentProject, onProje
 
                 {step === 2 && (
                     <div className="mt-5 p-4 border border-gray-200 rounded-lg bg-gray-50">
-                        <h4 className="text-sm font-bold text-gray-900 font-serif mb-3">
+                        <h4 className="mb-3 text-sm font-semibold text-slate-900">
                             Status Validasi File:{' '}
                             <span className={importStatus === 'FAILED' ? 'text-red-700' : importStatus === 'VALIDATED' ? 'text-green-700' : 'text-amber-600'}>
                                 {importStatus}
@@ -258,7 +258,7 @@ export default function RabImport({ projectId, projects, currentProject, onProje
 
                         {importStatus === 'FAILED' && (
                             <div className="text-sm text-red-800">
-                                <p className="font-bold mb-2">⚠️ Validasi Gagal. Silakan perbaiki kesalahan berikut pada file Anda:</p>
+                                <p className="font-bold mb-2">Validasi gagal. Silakan perbaiki kesalahan berikut pada file Anda:</p>
                                 <div className="max-h-48 overflow-y-auto bg-red-50 p-3 rounded-lg border border-red-200 font-mono text-xs leading-relaxed">
                                     {importErrors.map((err, i) => <div key={i} className="mb-1">• {err}</div>)}
                                 </div>
@@ -269,7 +269,10 @@ export default function RabImport({ projectId, projects, currentProject, onProje
                         {importStatus === 'VALIDATED' && importDiff && (
                             <div>
                                 <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800 mb-4">
-                                    <p className="font-bold mb-1">✅ Validasi Berhasil! Seluruh data format sesuai.</p>
+                                    <p className="font-bold mb-1">Validasi berhasil. Seluruh data format sesuai.</p>
+                                    {importDiff.selected_sheet && (
+                                        <p className="text-xs text-green-600 mb-1">Sheet: <strong>{importDiff.selected_sheet}</strong></p>
+                                    )}
                                     <p>Total Baris Valid: <strong>{importJob.total_rows}</strong></p>
                                     <div className="grid grid-cols-3 gap-2 mt-3 p-2 bg-white rounded-lg border border-green-200 text-center">
                                         <div>
@@ -286,6 +289,7 @@ export default function RabImport({ projectId, projects, currentProject, onProje
                                         </div>
                                     </div>
                                 </div>
+
                                 <div className="flex justify-end gap-2">
                                     <Button variant="outline" onClick={handleResetImport}>Batal</Button>
                                     <Button variant="primary" onClick={handleConfirmImport}>Konfirmasi & Import Sekarang</Button>
@@ -321,7 +325,7 @@ export default function RabImport({ projectId, projects, currentProject, onProje
                 subtitle={`${filteredData.length} item terdaftar`}
                 actions={
                     <div className="flex items-center gap-2">
-                        <Button variant="outline" size="sm" onClick={() => window.print()}>🖨️ Cetak</Button>
+                        <Button variant="outline" size="sm" onClick={() => window.print()}>Cetak</Button>
                         <div className="relative">
                             <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -351,7 +355,7 @@ export default function RabImport({ projectId, projects, currentProject, onProje
                     <LoadingSpinner message="Memuat data RAB..." />
                 ) : rabData.length === 0 ? (
                     <div className="text-center py-8">
-                        <p className="text-gray-500 italic font-serif">Belum ada data RAB.</p>
+                        <p className="text-slate-500">Belum ada data RAB.</p>
                         <p className="text-xs text-gray-400 italic mt-1">Upload file Excel di tab Import untuk memulai.</p>
                     </div>
                 ) : (
