@@ -3,12 +3,15 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Services\ApprovalPendingCountService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Notifications\DatabaseNotification;
 
 class WorkflowNotificationController extends Controller
 {
+    public function __construct(private readonly ApprovalPendingCountService $pendingApprovals) {}
+
     public function index(Request $request): JsonResponse
     {
         $notifications = $request->user()
@@ -39,15 +42,7 @@ class WorkflowNotificationController extends Controller
     {
         $request->user()->unreadNotifications()->update(['read_at' => now()]);
 
-        return response()->json([
-            'unread_count' => 0,
-            'approval_unread_count' => 0,
-            'approval_unread_counts' => [
-                'main' => 0,
-                'needs' => 0,
-                'invoices' => 0,
-            ],
-        ]);
+        return response()->json($this->unreadCounts($request));
     }
 
     private function unreadCounts(Request $request): array
@@ -62,6 +57,8 @@ class WorkflowNotificationController extends Controller
             return str_starts_with($url, '/approval');
         });
 
+        $pending = $this->pendingApprovals->forUser($request->user());
+
         return [
             'unread_count' => $unread->count(),
             'approval_unread_count' => $approval->count(),
@@ -70,6 +67,8 @@ class WorkflowNotificationController extends Controller
                 'needs' => $approval->filter(fn (DatabaseNotification $notification): bool => str_starts_with((string) data_get($notification->data, 'url', ''), '/approval/needs'))->count(),
                 'invoices' => $approval->filter(fn (DatabaseNotification $notification): bool => str_starts_with((string) data_get($notification->data, 'url', ''), '/approval/invoices'))->count(),
             ],
+            'pending_approval_count' => $pending['all'],
+            'pending_approval_counts' => $pending,
         ];
     }
 

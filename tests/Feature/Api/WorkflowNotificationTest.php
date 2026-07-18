@@ -43,13 +43,17 @@ class WorkflowNotificationTest extends TestCase
             ->getJson('/api/notifications')
             ->assertOk()
             ->assertJsonPath('approval_unread_count', 1)
-            ->assertJsonPath('approval_unread_counts.needs', 1);
+            ->assertJsonPath('approval_unread_counts.needs', 1)
+            ->assertJsonPath('pending_approval_count', 1)
+            ->assertJsonPath('pending_approval_counts.needs', 1);
 
         $this->actingAs($admin)
             ->getJson('/api/notifications')
             ->assertOk()
             ->assertJsonPath('approval_unread_count', 1)
-            ->assertJsonPath('approval_unread_counts.needs', 1);
+            ->assertJsonPath('approval_unread_counts.needs', 1)
+            ->assertJsonPath('pending_approval_count', 1)
+            ->assertJsonPath('pending_approval_counts.needs', 1);
     }
 
     public function test_recipient_can_view_and_mark_workflow_notification_read(): void
@@ -71,13 +75,15 @@ class WorkflowNotificationTest extends TestCase
             ->assertJsonPath('approval_unread_counts.main', 1)
             ->assertJsonPath('approval_unread_counts.needs', 0)
             ->assertJsonPath('approval_unread_counts.invoices', 0)
+            ->assertJsonPath('pending_approval_count', 0)
             ->json('data.0.id');
 
         $this->putJson("/api/notifications/{$notificationId}/read")
             ->assertOk()
             ->assertJsonPath('unread_count', 0)
             ->assertJsonPath('approval_unread_count', 0)
-            ->assertJsonPath('approval_unread_counts.main', 0);
+            ->assertJsonPath('approval_unread_counts.main', 0)
+            ->assertJsonPath('pending_approval_count', 0);
 
         $this->assertDatabaseHas('notifications', ['id' => $notificationId, 'notifiable_id' => $engineer->id]);
     }

@@ -20,10 +20,10 @@ export default function WorkflowNotifications({ onApprovalCountsChange }) {
     const syncUnreadCounts = useCallback((data) => {
         setUnreadCount(data.unread_count || 0);
         onApprovalCountsChange?.({
-            all: data.approval_unread_count || 0,
-            main: data.approval_unread_counts?.main || 0,
-            needs: data.approval_unread_counts?.needs || 0,
-            invoices: data.approval_unread_counts?.invoices || 0,
+            all: data.pending_approval_count || 0,
+            main: data.pending_approval_counts?.main || 0,
+            needs: data.pending_approval_counts?.needs || 0,
+            invoices: data.pending_approval_counts?.invoices || 0,
         });
     }, [onApprovalCountsChange]);
 
@@ -41,10 +41,12 @@ export default function WorkflowNotifications({ onApprovalCountsChange }) {
         load();
         const poll = window.setInterval(load, 15000);
         window.addEventListener('focus', load);
+        window.addEventListener('workflow-notifications:refresh', load);
 
         return () => {
             window.clearInterval(poll);
             window.removeEventListener('focus', load);
+            window.removeEventListener('workflow-notifications:refresh', load);
         };
     }, [load]);
 

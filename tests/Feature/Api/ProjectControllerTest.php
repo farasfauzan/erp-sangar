@@ -53,7 +53,8 @@ class ProjectControllerTest extends TestCase
         $this->getJson('/api/projects')
             ->assertOk()
             ->assertJsonPath('data.data.0.id', $project->id)
-            ->assertJsonPath('data.data.0.pending_approval_count', 3);
+            ->assertJsonPath('data.data.0.pending_approval_count', 3)
+            ->assertJsonPath('data.data.0.pending_rab_approval_count', 2);
     }
 
     // ─── SHOW ─────────────────────────────────────────────────────────────

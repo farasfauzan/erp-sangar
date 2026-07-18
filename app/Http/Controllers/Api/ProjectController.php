@@ -25,6 +25,7 @@ class ProjectController extends Controller
 
         $projectIds = $projects->getCollection()->pluck('id');
         $pendingCounts = array_fill_keys($projectIds->all(), 0);
+        $pendingRabCounts = collect();
         $addCounts = function ($counts) use (&$pendingCounts): void {
             foreach ($counts as $projectId => $count) {
                 $pendingCounts[$projectId] = ($pendingCounts[$projectId] ?? 0) + (int) $count;
@@ -32,12 +33,14 @@ class ProjectController extends Controller
         };
 
         if ($projectIds->isNotEmpty()) {
-            $addCounts(RabBudget::query()
+            $pendingRabCounts = RabBudget::query()
                 ->whereIn('project_id', $projectIds)
                 ->where('status', RabBudget::STATUS_PENDING)
+                ->whereRaw('version = (SELECT MAX(latest.version) FROM rab_budgets AS latest WHERE latest.project_id = rab_budgets.project_id AND latest.deleted_at IS NULL)')
                 ->selectRaw('project_id, COUNT(*) as aggregate')
                 ->groupBy('project_id')
-                ->pluck('aggregate', 'project_id'));
+                ->pluck('aggregate', 'project_id');
+            $addCounts($pendingRabCounts);
 
             $addCounts(PurchaseOrder::query()
                 ->whereIn('project_id', $projectIds)
@@ -98,6 +101,10 @@ class ProjectController extends Controller
 
         $projects->getCollection()->each(function (Project $project) use ($pendingCounts): void {
             $project->setAttribute('pending_approval_count', $pendingCounts[$project->id] ?? 0);
+        });
+
+        $projects->getCollection()->each(function (Project $project) use ($pendingRabCounts): void {
+            $project->setAttribute('pending_rab_approval_count', (int) ($pendingRabCounts[$project->id] ?? 0));
         });
 
         return response()->json([

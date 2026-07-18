@@ -14,7 +14,7 @@ const poCategory = (po) => String(po.items?.[0]?.rab_budget?.category || '').spl
 function ProjectApprovalPicker({ projects, value, onChange }) {
     const [open, setOpen] = useState(false);
     const selectedProject = projects.find((project) => String(project.id) === String(value));
-    const selectedCount = Number(selectedProject?.pending_approval_count || 0);
+    const selectedCount = Number(selectedProject?.pending_rab_approval_count || 0);
 
     const choose = (projectId) => {
         onChange(String(projectId || ''));
@@ -53,7 +53,7 @@ function ProjectApprovalPicker({ projects, value, onChange }) {
                         -- Pilih proyek --
                     </button>
                     {projects.map((project) => {
-                        const count = Number(project.pending_approval_count || 0);
+                        const count = Number(project.pending_rab_approval_count || 0);
                         const selected = String(project.id) === String(value);
 
                         return (
@@ -94,6 +94,7 @@ export default function ApprovalDashboard() {
     const [promptState, setPromptState] = useState({ open: false, defaultValue: '', callback: null });
     const api = useApi();
     const toast = useToast();
+    const refreshApprovalIndicators = () => window.dispatchEvent(new Event('workflow-notifications:refresh'));
 
     useEffect(() => {
         fetchData();
@@ -153,6 +154,7 @@ export default function ApprovalDashboard() {
                 try {
                     await api.post('/rab/approve', { item_ids: [...rabSelected] });
                     await Promise.all([fetchRabPending(rabProjectId), refreshProjects()]);
+                    refreshApprovalIndicators();
                 } catch (err) { /* toast shown by useApi */ }
             }
         });
@@ -169,6 +171,7 @@ export default function ApprovalDashboard() {
                 try {
                     await api.post('/rab/reject', { item_ids: [...rabSelected] });
                     await Promise.all([fetchRabPending(rabProjectId), refreshProjects()]);
+                    refreshApprovalIndicators();
                 } catch (err) { /* toast shown by useApi */ }
             }
         });
@@ -185,6 +188,7 @@ export default function ApprovalDashboard() {
                 try {
                     await api.post('/rab/approve', { project_id: parseInt(rabProjectId) });
                     await Promise.all([fetchRabPending(rabProjectId), refreshProjects()]);
+                    refreshApprovalIndicators();
                 } catch (err) { /* toast shown by useApi */ }
             }
         });
@@ -200,6 +204,7 @@ export default function ApprovalDashboard() {
                 try {
                     await api[method](url, payload);
                     await Promise.all([fetchData(), refreshProjects()]);
+                    refreshApprovalIndicators();
                 } catch (err) { /* toast shown by useApi */ }
             }
         });
