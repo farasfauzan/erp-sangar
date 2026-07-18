@@ -35,7 +35,8 @@ export default function FakturPajak() {
         setLoading(true);
         try {
             const res = await axios.get('/api/taxes');
-            setTaxes(Array.isArray(res.data) ? res.data : res.data?.data || []);
+            const items = res.data?.data;
+            setTaxes(Array.isArray(items) ? items : items?.data || []);
         } catch (err) {
             toast.error('Gagal memuat data pajak: ' + (err.response?.data?.message || err.message));
         } finally {

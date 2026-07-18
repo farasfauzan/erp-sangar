@@ -35,7 +35,7 @@ class MimoAiService
 
     public function __construct()
     {
-        $this->apiKey  = config('services.mimo.api_key', '');
+        $this->apiKey  = config('services.mimo.api_key') ?? '';
         $this->baseUrl = config('services.mimo.base_url', 'https://api.xiaomimimo.com/v1');
         $this->model   = config('services.mimo.model', 'mimo-vl-7b');
     }

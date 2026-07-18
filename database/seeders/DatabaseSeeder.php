@@ -5,7 +5,6 @@ namespace Database\Seeders;
 use Illuminate\Database\Seeder;
 use App\Models\Project;
 use App\Models\RabBudget;
-
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
@@ -71,5 +70,9 @@ class DatabaseSeeder extends Seeder
             'total_price' => 62500000,
             'category' => 'Material'
         ]);
+
+        // 4. Run Gorontalo seeder (will create project if not exists)
+        $this->call(ImportGorontaloSeeder::class);
     }
+}
 }

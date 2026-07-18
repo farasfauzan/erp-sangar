@@ -322,6 +322,7 @@ class RabBudgetController extends Controller
         $validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
             'project_id' => 'required|exists:projects,id',
             'file' => 'required|file|mimes:xlsx,xls,csv,txt|max:51200',
+            'sheet_name' => 'nullable|string',
         ]);
 
         if ($validator->fails()) {
@@ -347,6 +348,7 @@ class RabBudgetController extends Controller
                 'file_path' => $absolutePath,
                 'file_name' => $file->getClientOriginalName(),
                 'file_type' => $type,
+                'sheet_name' => $request->sheet_name,
                 'status' => RabImportJob::STATUS_PENDING,
             ]);
 
@@ -374,6 +376,41 @@ class RabBudgetController extends Controller
         $job = RabImportJob::findOrFail($id);
         return response()->json([
             'success' => true,
+            'data' => $job,
+        ]);
+    }
+
+    /**
+     * Re-validate import with specific sheet
+     */
+    public function revalidateImport(Request $request, $id)
+    {
+        $job = RabImportJob::findOrFail($id);
+
+        $validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
+            'sheet_name' => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        $job->update([
+            'sheet_name' => $request->sheet_name,
+            'status' => RabImportJob::STATUS_PENDING,
+            'errors' => [],
+            'diff' => null,
+            'total_rows' => 0,
+        ]);
+
+        ValidateRabImportJob::dispatch($job->id);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Re-validasi dengan sheet "' . $request->sheet_name . '"...',
             'data' => $job,
         ]);
     }

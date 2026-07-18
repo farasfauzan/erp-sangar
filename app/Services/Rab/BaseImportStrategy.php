@@ -30,6 +30,17 @@ abstract class BaseImportStrategy implements ImportStrategyInterface
             return null; // Empty row
         }
 
+        // Many RAB templates put a second header row containing only the
+        // column guide 1, 2, 3, 4, 5, 6. It is not a budget item.
+        if ((string) $normalized['code'] === '1'
+            && (string) $normalized['description'] === '2'
+            && (string) $normalized['unit'] === '3'
+            && (float) $normalized['qty'] === 4.0
+            && (float) $normalized['price'] === 5.0
+            && (float) $normalized['total'] === 6.0) {
+            return null;
+        }
+
         if ($this->isCategoryHeader($normalized)) {
             $this->updateCategories($normalized);
             return null; // Skip category rows
@@ -80,11 +91,10 @@ abstract class BaseImportStrategy implements ImportStrategyInterface
 
     public function matches(Worksheet $sheet): bool
     {
+        $sheetName = trim($sheet->getTitle());
         foreach ($this->getTargetSheetNames() as $targetName) {
-            foreach ($sheet->getParent()->getSheetNames() as $sheetName) {
-                if (stripos($sheetName, $targetName) !== false) {
-                    return true;
-                }
+            if (stripos($sheetName, trim($targetName)) !== false) {
+                return true;
             }
         }
         return false;
@@ -114,10 +124,15 @@ abstract class BaseImportStrategy implements ImportStrategyInterface
             $rowStr = implode(' ', $rowValues);
             if (empty($rowStr)) continue;
             
+            $keywordMatches = 0;
             foreach ($keywords as $kw) {
-                if (strpos($rowStr, $kw) !== false) {
-                    return $row;
+                $pattern = '/(?<![\pL\pN])' . preg_quote($kw, '/') . '(?![\pL\pN])/iu';
+                if (preg_match($pattern, $rowStr)) {
+                    $keywordMatches++;
                 }
+            }
+            if ($keywordMatches >= 2) {
+                return $row;
             }
         }
         return 1;
@@ -127,12 +142,15 @@ abstract class BaseImportStrategy implements ImportStrategyInterface
     {
         $map = [];
         $keywords = [
-            'code' => ['nomor', 'no.', 'no', 'kode', 'kode item', 'code', 'item'],
-            'description' => ['uraian', 'uraian pekerjaan', 'jenis barang/jasa', 'deskripsi', 'nama barang', 'description', 'pekerjaan'],
-            'unit' => ['satuan', 'satuan unit', 'unit'],
-            'qty' => ['volume', 'qty', 'jumlah', 'kuantitas'],
-            'price' => ['harga satuan', 'harga satuan (rp)', 'harga', 'harga_satuan', 'price'],
+            // Match the more specific monetary headers before "satuan";
+            // otherwise "Harga Satuan" and "Jumlah Harga Satuan" are both
+            // incorrectly classified as the unit column.
             'total' => ['jumlah harga', 'jumlah harga satuan', 'total', 'total (rp.)', 'jumlah'],
+            'price' => ['harga satuan', 'harga satuan (rp)', 'harga_satuan', 'price', 'harga'],
+            'qty' => ['volume', 'qty', 'kuantitas'],
+            'description' => ['uraian pekerjaan', 'jenis barang/jasa', 'nama barang', 'description', 'deskripsi', 'uraian', 'pekerjaan'],
+            'code' => ['kode item', 'nomor', 'no.', 'kode', 'code', 'item', 'no'],
+            'unit' => ['satuan unit', 'satuan', 'unit'],
         ];
 
         $headerRowData = [];

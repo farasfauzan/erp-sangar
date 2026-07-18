@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Project;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class ProjectController extends Controller
 {
@@ -80,6 +82,118 @@ class ProjectController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Proyek berhasil dihapus.',
+        ]);
+    }
+
+    public function resetData($id)
+    {
+        $project = Project::findOrFail($id);
+
+        DB::transaction(function () use ($id) {
+            // Because SQLite cascading might not be fully active by default in all environments,
+            // we will delete from dependent tables explicitly where necessary to avoid orphan data.
+            
+            // Delete invoice details
+            if (Schema::hasTable('invoice_items')) {
+                DB::table('invoice_items')->whereIn('invoice_id', function ($q) use ($id) {
+                    $q->select('id')->from('invoices')->whereIn('invoiceable_id', function ($sq) use ($id) {
+                        $sq->select('id')->from('purchase_orders')->where('project_id', $id);
+                    })->where('invoiceable_type', \App\Models\PurchaseOrder::class);
+                })->delete();
+
+                DB::table('invoice_items')->whereIn('invoice_id', function ($q) use ($id) {
+                    $q->select('id')->from('invoices')->whereIn('invoiceable_id', function ($sq) use ($id) {
+                        $sq->select('id')->from('spks')->where('project_id', $id);
+                    })->where('invoiceable_type', \App\Models\Spk::class);
+                })->delete();
+            }
+            
+            if (Schema::hasTable('invoices')) {
+                DB::table('invoices')->whereIn('invoiceable_id', function ($sq) use ($id) {
+                    $sq->select('id')->from('purchase_orders')->where('project_id', $id);
+                })->where('invoiceable_type', \App\Models\PurchaseOrder::class)->delete();
+                
+                DB::table('invoices')->whereIn('invoiceable_id', function ($sq) use ($id) {
+                    $sq->select('id')->from('spks')->where('project_id', $id);
+                })->where('invoiceable_type', \App\Models\Spk::class)->delete();
+            }
+
+            if (Schema::hasTable('goods_receipt_items')) {
+                DB::table('goods_receipt_items')->whereIn('goods_receipt_id', function($q) use ($id) {
+                    $q->select('id')->from('goods_receipts')->whereIn('purchase_order_id', function($sq) use ($id) {
+                        $sq->select('id')->from('purchase_orders')->where('project_id', $id);
+                    });
+                })->delete();
+            }
+            
+            if (Schema::hasTable('goods_receipts')) {
+                DB::table('goods_receipts')->whereIn('purchase_order_id', function($q) use ($id) {
+                    $q->select('id')->from('purchase_orders')->where('project_id', $id);
+                })->delete();
+            }
+            
+            if (Schema::hasTable('bast_items')) {
+                DB::table('bast_items')->whereIn('bast_id', function($q) use ($id) {
+                    $q->select('id')->from('basts')->whereIn('spk_id', function($sq) use ($id) {
+                        $sq->select('id')->from('spks')->where('project_id', $id);
+                    });
+                })->delete();
+            }
+            
+            if (Schema::hasTable('basts')) {
+                DB::table('basts')->whereIn('spk_id', function($q) use ($id) {
+                    $q->select('id')->from('spks')->where('project_id', $id);
+                })->delete();
+            }
+
+            // `po_items` is the actual table name. These rows use a required
+            // foreign key to purchase_orders, so they must be removed before
+            // the parent PO can be reset.
+            if (Schema::hasTable('po_items')) {
+                DB::table('po_items')->whereIn('purchase_order_id', function($q) use ($id) {
+                    $q->select('id')->from('purchase_orders')->where('project_id', $id);
+                })->delete();
+            }
+            if (Schema::hasTable('po_attachments')) {
+                DB::table('po_attachments')->whereIn('purchase_order_id', function($q) use ($id) {
+                    $q->select('id')->from('purchase_orders')->where('project_id', $id);
+                })->delete();
+            }
+            
+            if (Schema::hasTable('spk_items')) {
+                DB::table('spk_items')->whereIn('spk_id', function($q) use ($id) {
+                    $q->select('id')->from('spks')->where('project_id', $id);
+                })->delete();
+            }
+            if (Schema::hasTable('spk_attachments')) {
+                DB::table('spk_attachments')->whereIn('spk_id', function($q) use ($id) {
+                    $q->select('id')->from('spks')->where('project_id', $id);
+                })->delete();
+            }
+
+            // Clear direct children of projects
+            $tables = [
+                'purchase_requisitions',
+                'material_requests',
+                'efakturs',
+                'general_ledgers',
+                'rab_import_jobs',
+                'fund_requests',
+                'spks',
+                'purchase_orders',
+                'rab_budgets',
+            ];
+
+            foreach ($tables as $table) {
+                if (Schema::hasTable($table)) {
+                    DB::table($table)->where('project_id', $id)->delete();
+                }
+            }
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Data transaksi proyek berhasil di-reset.',
         ]);
     }
 }

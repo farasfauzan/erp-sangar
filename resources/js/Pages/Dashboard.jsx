@@ -74,6 +74,23 @@ export default function Dashboard({ auth }) {
         finally { setSaving(false); }
     };
 
+    const handleResetProject = async () => {
+        if (!window.confirm('PERINGATAN: Apakah Anda yakin ingin menghapus SEMUA data transaksi (RAB, PO, dll) pada proyek ini?\n\nData proyek itu sendiri tidak akan dihapus. Tindakan ini permanen!')) {
+            return;
+        }
+        setSaving(true);
+        try {
+            await api.post(`/api/projects/${projectId}/reset`);
+            toast.success('Semua data transaksi proyek berhasil dihapus.');
+            // Reload page or just refresh active data
+            window.location.reload();
+        } catch (err) {
+            toast.error('Gagal mereset data proyek.');
+        } finally {
+            setSaving(false);
+        }
+    };
+
     const isRabTab = activeTab === 'import' || activeTab === 'rab';
 
     return (
@@ -142,9 +159,19 @@ export default function Dashboard({ auth }) {
                                 <option value="on_hold">On Hold</option><option value="cancelled">Cancelled</option>
                             </select>
                         </div>
-                        <div className="flex justify-end gap-2 pt-2">
-                            <Button variant="outline" onClick={() => setShowEditModal(false)}>Batal</Button>
-                            <Button variant="primary" type="submit" loading={saving}>{saving ? 'Menyimpan...' : 'Simpan Perubahan'}</Button>
+                        <div className="flex justify-between gap-2 pt-2 border-t border-gray-100 mt-2 pt-4">
+                            <button
+                                type="button"
+                                onClick={handleResetProject}
+                                disabled={saving}
+                                className="rounded-md border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
+                            >
+                                Reset Data Transaksi
+                            </button>
+                            <div className="flex gap-2">
+                                <Button variant="outline" onClick={() => setShowEditModal(false)}>Batal</Button>
+                                <Button variant="primary" type="submit" loading={saving}>{saving ? 'Menyimpan...' : 'Simpan Perubahan'}</Button>
+                            </div>
                         </div>
                     </form>
                 </Modal>

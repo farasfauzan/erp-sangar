@@ -57,6 +57,13 @@ Route::middleware(['auth:web', 'verified'])->withoutMiddleware([\Illuminate\Foun
         Route::post('/rab/import/validate', [RabImportController::class, 'validateImport']);
         Route::post('/rab/import', [RabImportController::class, 'import']);
         Route::post('/rab/import/auto', [RabImportController::class, 'autoImport']);
+        Route::post('/rab/import/manual', [RabImportController::class, 'manualImport']);
+        Route::post('/rab/import/manual-item', [RabImportController::class, 'manualImportItem']);
+        Route::post('/rab/import/manual-status', [RabImportController::class, 'manualImportStatus']);
+        Route::post('/rab/import/draft-rows', [RabImportController::class, 'storeDraftRows']);
+        Route::patch('/rab/import/draft-row', [RabImportController::class, 'updateDraftRow']);
+        Route::get('/rab/import/drafts', [RabImportController::class, 'drafts']);
+        Route::get('/rab/import/drafts/{fingerprint}', [RabImportController::class, 'draftRows']);
         Route::get('/rab/import/projects', [RabImportController::class, 'projects']);
     });
 

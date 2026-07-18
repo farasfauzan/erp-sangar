@@ -16,7 +16,8 @@ class RabBudget extends Model
     protected $fillable = [
         'project_id', 'code_item', 'description', 'unit', 'volume',
         'unit_price', 'total_price', 'category', 'ai_category', 'status',
-        'parent_id', 'approved_by', 'approved_at',
+        'parent_id', 'approved_by', 'approved_at', 'source_import_key',
+        'source_file_fingerprint', 'source_sheet', 'source_row', 'imported_by',
     ];
 
     // Statuses
@@ -44,6 +45,11 @@ class RabBudget extends Model
     public function approver()
     {
         return $this->belongsTo(User::class, 'approved_by');
+    }
+
+    public function importedBy()
+    {
+        return $this->belongsTo(User::class, 'imported_by');
     }
 
     // Lock check: cannot edit if APPROVED

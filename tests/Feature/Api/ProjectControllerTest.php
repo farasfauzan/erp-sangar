@@ -3,6 +3,11 @@
 namespace Tests\Feature\Api;
 
 use App\Models\Project;
+use App\Models\GoodsReceipt;
+use App\Models\PoItem;
+use App\Models\PurchaseOrder;
+use App\Models\RabBudget;
+use Illuminate\Support\Facades\DB;
 
 class ProjectControllerTest extends TestCase
 {
@@ -157,5 +162,44 @@ class ProjectControllerTest extends TestCase
 
         $this->deleteJson("/api/projects/{$project->id}")
             ->assertForbidden();
+    }
+
+    public function test_reset_removes_po_dependencies_before_purchase_orders(): void
+    {
+        $this->actingAsRole('ADMIN');
+        $project = Project::factory()->create();
+        $rab = RabBudget::factory()->create(['project_id' => $project->id]);
+        $po = PurchaseOrder::factory()->create(['project_id' => $project->id]);
+        $poItem = PoItem::factory()->create([
+            'purchase_order_id' => $po->id,
+            'rab_budget_id' => $rab->id,
+        ]);
+        $receipt = GoodsReceipt::factory()->create(['purchase_order_id' => $po->id]);
+
+        DB::table('goods_receipt_items')->insert([
+            'goods_receipt_id' => $receipt->id,
+            'po_item_id' => $poItem->id,
+            'quantity_received' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        DB::table('po_attachments')->insert([
+            'purchase_order_id' => $po->id,
+            'file_name' => 'contoh.pdf',
+            'file_path' => 'attachments/po/contoh.pdf',
+            'file_size' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->postJson("/api/projects/{$project->id}/reset")
+            ->assertOk()
+            ->assertJsonPath('success', true);
+
+        $this->assertDatabaseMissing('goods_receipt_items', ['po_item_id' => $poItem->id]);
+        $this->assertDatabaseMissing('goods_receipts', ['id' => $receipt->id]);
+        $this->assertDatabaseMissing('po_items', ['id' => $poItem->id]);
+        $this->assertDatabaseMissing('po_attachments', ['purchase_order_id' => $po->id]);
+        $this->assertDatabaseMissing('purchase_orders', ['id' => $po->id]);
     }
 }

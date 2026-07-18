@@ -26,3 +26,20 @@ Homestead.json
 Homestead.yaml
 Thumbs.db
 database/database.sqlite
+
+# Local attachments, debug output, and test artifacts
+.hermes/
+cookies*.txt
+composer.phar
+composer-setup.php
+tmp/
+test-results/
+tests/e2e/test-results/
+tests/playwright-report/
+tests/screenshots/
+olx.html
+olx.png
+shopee.html
+shopee.png
+tokopedia.html
+tokopedia.png
