@@ -45,7 +45,7 @@ const excelColumnName = (number) => {
     return name;
 };
 
-function ExcelSheetGrid({ rows, rawData, sheet, savingRows, updateRow, saveRow }) {
+function ExcelSheetGrid({ rows, rawData, sheet, savingRows, updateRow, saveRow, toggleAll }) {
     const viewportRef = useRef(null);
     const [scrollTop, setScrollTop] = useState(0);
     const [selectedCell, setSelectedCell] = useState({ address: 'A1', value: '' });
@@ -135,6 +135,8 @@ function ExcelSheetGrid({ rows, rawData, sheet, savingRows, updateRow, saveRow }
     const visibleStart = Math.max(0, Math.floor(scrollTop / rowHeight) - overscan);
     const visibleEnd = Math.min(previewRows.length, visibleStart + 55);
     const visibleRows = previewRows.slice(visibleStart, visibleEnd);
+    const selectedCount = rows.filter((row) => row.selected).length;
+    const allRowsSelected = rows.length > 0 && selectedCount === rows.length;
     const descriptionColumn = Object.entries(rawData?.columnMap || {}).find(([, field]) => field === 'description')?.[0];
     const detailColumns = Object.entries(rawData?.columnMap || {})
         .filter(([, field]) => ['unit', 'qty', 'price', 'total'].includes(field))
@@ -156,13 +158,19 @@ function ExcelSheetGrid({ rows, rawData, sheet, savingRows, updateRow, saveRow }
                     <span className="mr-1 text-[11px] text-gray-500">Ukuran</span>
                     <button type="button" onClick={() => setDisplayDensity('comfortable')} className={`rounded px-2 py-1 text-[11px] font-medium ${comfortableView ? 'bg-blue-100 text-blue-800' : 'text-gray-500 hover:bg-gray-100'}`}>Nyaman</button>
                     <button type="button" onClick={() => setDisplayDensity('compact')} className={`rounded px-2 py-1 text-[11px] font-medium ${!comfortableView ? 'bg-blue-100 text-blue-800' : 'text-gray-500 hover:bg-gray-100'}`}>Ringkas</button>
+                    <button type="button" onClick={() => toggleAll(false)} disabled={selectedCount === 0} className="rounded px-2 py-1 text-[11px] font-medium text-gray-500 hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-40">Uncheck semua</button>
                 </div>
             </div>
 
             <div ref={viewportRef} onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)} className="h-[68vh] overflow-auto bg-white">
                 <div style={{ minWidth: `${totalWidth}px` }}>
                     <div className="sticky top-0 z-30 grid h-6 bg-[#f1f3f4] text-center text-[11px] font-medium text-gray-600" style={{ gridTemplateColumns }}>
-                        <div className="sticky left-0 z-40 flex items-center justify-center border-b border-r border-[#c7c7c7] bg-[#e8eaed]">#</div>
+                        <div className="sticky left-0 z-40 flex items-center justify-center border-b border-r border-[#c7c7c7] bg-[#e8eaed]">
+                            <label className="flex items-center gap-1" title={allRowsSelected ? 'Uncheck semua baris' : 'Pilih semua baris'}>
+                                <input type="checkbox" checked={allRowsSelected} onChange={(event) => toggleAll(event.target.checked)} aria-label={allRowsSelected ? 'Uncheck semua baris' : 'Pilih semua baris'} />
+                                <span>#</span>
+                            </label>
+                        </div>
                         {visibleColumns.map((column) => <div key={column} className="flex items-center justify-center border-b border-r border-[#c7c7c7] bg-[#f1f3f4]">{column}</div>)}
                         <div className="flex items-center justify-center border-b border-r border-[#a8b9a1] bg-[#d9ead3] font-semibold text-[#1f3b24]">{categoryColumn} · Kategori</div>
                         <div className="flex items-center justify-center border-b border-r border-[#a8b9a1] bg-[#d9ead3] font-semibold text-[#1f3b24]">{groupColumn} · Folder</div>
@@ -751,6 +759,7 @@ function ManualRabImport({ projectId, projects, onProjectChange, onAddProject, o
                         savingRows={savingRows}
                         updateRow={updateRow}
                         saveRow={saveRow}
+                        toggleAll={toggleAll}
                     />
                     {false && <>
                     <div className="flex h-9 items-center border-b border-[#c7c7c7] bg-[#f8f9fa] text-xs text-gray-700">
