@@ -44,7 +44,7 @@ function ProjectApprovalPicker({ projects, value, onChange }) {
             </button>
 
             {open && (
-                <div className="absolute left-0 right-0 z-30 mt-1 max-h-72 overflow-y-auto rounded-md border border-gray-200 bg-white p-1 shadow-xl" role="listbox">
+                <div className="absolute left-0 right-0 z-50 mt-1 max-h-72 overflow-y-auto rounded-md border border-gray-200 bg-white p-1 shadow-xl" role="listbox">
                     <button
                         type="button"
                         onClick={() => choose('')}
@@ -231,7 +231,7 @@ export default function ApprovalDashboard() {
                     {loading ? <p>Memuat...</p> : (
                         <>
                             {/* RAB Approval Section */}
-                            <div className="overflow-hidden bg-white shadow-sm sm:rounded-lg">
+                            <div className="relative z-20 overflow-visible bg-white shadow-sm sm:rounded-lg">
                                 <div className="p-6">
                                     <h3 className="mb-4 text-lg font-bold">Approval RAB Per Item</h3>
                                     <div className="mb-4 flex items-end gap-3">
