@@ -210,12 +210,11 @@ Route::middleware(['auth:web', 'verified'])->withoutMiddleware([\Illuminate\Foun
     });
 
     // ─── Opnames ──────────────────────────────────────────────────────
-    Route::middleware('role:ADMIN,LAPANGAN')->group(function () {
+    Route::middleware('role:ADMIN,LAPANGAN,ENGINEER,PURCHASING_LEGAL,VERIFIKATOR_KEU,MGR_KOMERSIAL,KEU_KANTOR,PAJAK,ACCOUNTING')->group(function () {
         Route::get('/opnames', [OpnameController::class, 'index']);
-        Route::post('/opnames', [OpnameController::class, 'store']);
     });
-    Route::middleware('role:ENGINEER,PURCHASING_LEGAL,VERIFIKATOR_KEU,MGR_KOMERSIAL,KEU_KANTOR,PAJAK,ACCOUNTING')->group(function () {
-        Route::get('/opnames', [OpnameController::class, 'index']);
+    Route::middleware('role:ADMIN,LAPANGAN')->group(function () {
+        Route::post('/opnames', [OpnameController::class, 'store']);
     });
     Route::middleware('role:ADMIN,ENGINEER')->group(function () {
         Route::put('/opnames/{id}/approve', [OpnameController::class, 'approve']);
