@@ -2,77 +2,47 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Seeder;
-use App\Models\Project;
-use App\Models\RabBudget;
 use App\Models\Role;
 use App\Models\User;
+use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 
 class DatabaseSeeder extends Seeder
 {
+    /**
+     * Seed only the baseline access configuration.
+     *
+     * Operational records (projects, RAB, PO, SPK, and so on) must be created
+     * through the application, rather than being reintroduced on a database reset.
+     */
     public function run(): void
     {
-        // 1. Seed Roles
         $roles = [
             'ADMIN',
-            'LAPANGAN', 
-            'ENGINEER', 
-            'PURCHASING_LEGAL', 
-            'VERIFIKATOR_KEU', 
-            'MGR_KOMERSIAL', 
-            'KEU_KANTOR', 
-            'PAJAK', 
-            'ACCOUNTING'
+            'LAPANGAN',
+            'ENGINEER',
+            'PURCHASING_LEGAL',
+            'VERIFIKATOR_KEU',
+            'MGR_KOMERSIAL',
+            'KEU_KANTOR',
+            'PAJAK',
+            'ACCOUNTING',
         ];
-        
-        $roleMap = [];
+
         foreach ($roles as $roleName) {
-            $roleMap[$roleName] = Role::create(['role_name' => $roleName])->id;
+            Role::firstOrCreate(['role_name' => $roleName]);
         }
 
-        // 2. Seed Users (password: "password", email verified so middleware 'verified' passes)
-        foreach ($roles as $roleName) {
-            User::create([
-                'name' => ucwords(strtolower(str_replace('_', ' ', $roleName))),
-                'email' => strtolower($roleName) . '@erp.com',
+        $adminRole = Role::where('role_name', 'ADMIN')->firstOrFail();
+
+        User::firstOrCreate(
+            ['email' => 'admin@erp.com'],
+            [
+                'name' => 'Admin',
                 'password' => Hash::make('password'),
-                'role_id' => $roleMap[$roleName],
+                'role_id' => $adminRole->id,
                 'email_verified_at' => now(),
-            ]);
-        }
-
-        // 3. Seed initial project
-        $project = Project::create([
-            'project_name' => 'Proyek RSUD Mentawai',
-            'location' => 'Mentawai',
-            'start_date' => '2026-08-01',
-        ]);
-
-        RabBudget::create([
-            'project_id' => $project->id,
-            'code_item' => 'A.1.1',
-            'description' => 'Semen Portland (PC) 50kg',
-            'unit' => 'Zak',
-            'volume' => 1000,
-            'unit_price' => 75000,
-            'total_price' => 75000000,
-            'category' => 'Material'
-        ]);
-
-        RabBudget::create([
-            'project_id' => $project->id,
-            'code_item' => 'A.1.2',
-            'description' => 'Besi Beton Polos',
-            'unit' => 'Kg',
-            'volume' => 5000,
-            'unit_price' => 12500,
-            'total_price' => 62500000,
-            'category' => 'Material'
-        ]);
-
-        // 4. Run Gorontalo seeder (will create project if not exists)
-        $this->call(ImportGorontaloSeeder::class);
+            ],
+        );
     }
-}
 }

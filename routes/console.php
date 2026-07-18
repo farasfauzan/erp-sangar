@@ -13,7 +13,9 @@ Artisan::command('import:gik-ugm', function () {
     return 0;
 })->purpose('Import GIK UGM data (RAB, Suppliers, POs)');
 
-Artisan::command('import:gik-rab', function () {
+// Legacy inline importer kept only for reference. The maintained importer
+// lives in App\Console\Commands\ImportGikRab.
+Artisan::command('legacy:import:gik-rab', function () {
     $this->info('Starting GIK UGM RAB import...');
     
     // 1. Get Project

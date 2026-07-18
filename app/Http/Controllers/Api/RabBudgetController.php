@@ -10,6 +10,7 @@ use App\Models\PoItem;
 use App\Models\PurchaseRequisition;
 use App\Jobs\ValidateRabImportJob;
 use App\Jobs\ExecuteRabImportJob;
+use App\Services\WorkflowNotificationService;
 use App\Traits\HandlesRabParsing;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -19,6 +20,10 @@ use Illuminate\Support\Facades\Log;
 class RabBudgetController extends Controller
 {
     use HandlesRabParsing;
+
+    public function __construct(private readonly WorkflowNotificationService $notifications)
+    {
+    }
 
     /**
      * Preview Excel (first 30 rows)
@@ -255,37 +260,9 @@ class RabBudgetController extends Controller
                         ->delete();
                 }
 
-                // Create stock
-                $existingStockRabs = InventoryStock::where('project_id', $projectId)
-                    ->pluck('rab_budget_id')
-                    ->filter()
-                    ->toArray();
-
-                $stockBatch = [];
-                foreach ($newActiveRabs as $rab) {
-                    if (! in_array($rab->id, $existingStockRabs)) {
-                        $stockBatch[] = [
-                            'project_id' => $projectId,
-                            'rab_budget_id' => $rab->id,
-                            'item_name' => $rab->description,
-                            'unit' => $rab->unit ?: 'LS',
-                            'quantity' => 0,
-                            'min_quantity' => 0,
-                            'location' => '-',
-                            'created_at' => now(),
-                            'updated_at' => now(),
-                        ];
-
-                        if (count($stockBatch) >= $batchSize) {
-                            InventoryStock::insert($stockBatch);
-                            $stockBatch = [];
-                        }
-                    }
-                }
-
-                if ($stockBatch !== []) {
-                    InventoryStock::insert($stockBatch);
-                }
+                // A RAB is a budget plan, not a physical receipt. Inventory
+                // is created/increased only when Material is received against
+                // an approved supplier PO.
 
                 return [
                     'imported' => $imported,
@@ -547,6 +524,14 @@ class RabBudgetController extends Controller
     {
         $request->validate(['project_id' => 'required|exists:projects,id']);
         $count = RabBudget::submitForApproval($request->project_id);
+        if ($count > 0) {
+            $this->notifications->toRole(
+                'ENGINEER',
+                'RAB menunggu approval teknis',
+                "{$count} item RAB diajukan untuk pemeriksaan dan persetujuan Engineer.",
+                '/approval'
+            );
+        }
         return response()->json([
             'success' => true,
             'message' => "{$count} item RAB diajukan untuk approval.",

@@ -120,11 +120,34 @@ class ErpWorkflowTest extends TestCase
         $this->assertDatabaseHas('transactions', ['invoice_id' => $invoiceId, 'amount' => 110999]);
     }
 
+    public function test_rab_technical_approval_is_available_to_engineer_but_not_purchasing(): void
+    {
+        $project = $this->project();
+        $rab = $this->rab($project, 'PENDING');
+        $engineerRole = Role::firstOrCreate(['role_name' => 'ENGINEER']);
+        $engineer = User::factory()->create(['role_id' => $engineerRole->id]);
+
+        $this->actingAs($engineer)
+            ->postJson('/rab/approve', ['project_id' => $project->id])
+            ->assertOk();
+        $this->assertDatabaseHas('rab_budgets', ['id' => $rab->id, 'status' => 'APPROVED']);
+
+        $rab->update(['status' => 'PENDING']);
+        $purchasingRole = Role::firstOrCreate(['role_name' => 'PURCHASING_LEGAL']);
+        $purchasing = User::factory()->create(['role_id' => $purchasingRole->id]);
+        $this->actingAs($purchasing)
+            ->postJson('/rab/approve', ['project_id' => $project->id])
+            ->assertForbidden();
+    }
+
     public function test_spk_invoice_must_reference_an_approved_opname_once(): void
     {
         $user = $this->adminUser();
         $this->actingAs($user);
         $project = $this->project();
+
+        $spkRab = $this->rab($project, 'APPROVED');
+        $spkRab->update(['category' => 'Subkon']);
 
         $sourcePoResponse = $this->actingAs($user)->postJson('/api/pos', [
             'project_id' => $project->id,
@@ -132,7 +155,7 @@ class ErpWorkflowTest extends TestCase
             'date' => '2026-07-10',
             'po_level' => 'PROJECT',
             'items' => [[
-                'rab_budget_id' => $this->rab($project, 'APPROVED')->id,
+                'rab_budget_id' => $spkRab->id,
                 'item_name' => 'Pekerjaan SPK',
                 'qty' => 1,
             ]],

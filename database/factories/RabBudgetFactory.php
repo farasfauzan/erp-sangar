@@ -26,7 +26,7 @@ class RabBudgetFactory extends Factory
             'volume'      => $volume,
             'unit_price'  => $unitPrice,
             'total_price' => $volume * $unitPrice,
-            'category'    => fake()->randomElement(['Material', 'Upah', 'Alat']),
+            'category'    => 'Material',
             'status'      => RabBudget::STATUS_DRAFT,
         ];
     }

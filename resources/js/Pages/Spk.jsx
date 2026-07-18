@@ -18,6 +18,7 @@ const initialForm = () => ({
     source_po_id: '',
 });
 const money = (value) => `Rp ${Number(value || 0).toLocaleString('id-ID')}`;
+const baseCategory = (value = '') => String(value).split(' / ')[0] || '';
 
 export default function Spk() {
     const { projects } = useProjects();
@@ -70,6 +71,8 @@ export default function Spk() {
         update('source_po_id', poId);
         const po = pos.find(p => String(p.id) === String(poId));
         if (po) {
+            const category = baseCategory(po.items?.[0]?.rab_budget?.category);
+            update('spk_type', category === 'Pekerja' ? 'MANDOR' : 'SUBKON');
             if (po.subcon_name && !form.subcon_name) update('subcon_name', po.subcon_name || '');
         }
     };
@@ -144,7 +147,7 @@ export default function Spk() {
                                     <select value={form.source_po_id || ''} onChange={(event) => handlePoSelect(event.target.value)} required className="mt-1 block w-full rounded border-gray-300">
                                         <option value="">Pilih PO yang diarahkan Engineer ke SPK</option>
                                         {pos.map((po) => (
-                                            <option key={po.id} value={po.id}>{po.po_number} — {money(po.total_amount)}</option>
+                                            <option key={po.id} value={po.id}>{po.po_number} — {baseCategory(po.items?.[0]?.rab_budget?.category) || 'Tanpa kategori'} — {money(po.total_amount)}</option>
                                         ))}
                                     </select>
                                     {!pos.length && <span className="mt-1 block text-xs text-amber-700">Belum ada PO Proyek yang diarahkan ke SPK.</span>}

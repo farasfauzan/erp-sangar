@@ -289,23 +289,8 @@ class RabImportController extends Controller
                     RabBudget::where('project_id', $projectId)->where('version', '<=', $currentVersion)->delete();
                 }
 
-                $existingStockIds = InventoryStock::where('project_id', $projectId)->pluck('rab_budget_id')->filter()->all();
-                $stockRows = [];
-                foreach ($newItems as $item) {
-                    if (in_array($item->id, $existingStockIds, true)) continue;
-                    $stockRows[] = [
-                        'project_id' => $projectId,
-                        'rab_budget_id' => $item->id,
-                        'item_name' => $item->description,
-                        'unit' => $item->unit ?: 'LS',
-                        'quantity' => 0,
-                        'min_quantity' => 0,
-                        'location' => '-',
-                        'created_at' => $now,
-                        'updated_at' => $now,
-                    ];
-                }
-                if ($stockRows !== []) InventoryStock::insert($stockRows);
+                // Importing a budget must not create physical stock. Material
+                // enters inventory later through an approved PO receipt.
 
                 return ['imported' => count($rows), 'version' => $newVersion];
             });
@@ -410,17 +395,6 @@ class RabImportController extends Controller
                 $payload['version'] = max(1, (int) (RabBudget::where('project_id', $projectId)->max('version') ?? 1));
                 $payload['status'] = RabBudget::STATUS_DRAFT;
                 $item->forceFill($payload)->save();
-
-                InventoryStock::updateOrCreate(
-                    ['project_id' => $projectId, 'rab_budget_id' => $item->id],
-                    [
-                        'item_name' => $item->description,
-                        'unit' => $item->unit ?: 'LS',
-                        'quantity' => 0,
-                        'min_quantity' => 0,
-                        'location' => '-',
-                    ]
-                );
 
                 RabImportDraft::where('project_id', $projectId)
                     ->where('file_fingerprint', $payload['source_file_fingerprint'])

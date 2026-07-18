@@ -97,6 +97,11 @@ Route::middleware(['auth', 'verified', 'role:ADMIN,PURCHASING_LEGAL'])->group(fu
     Route::post('/rab/import-async', [\App\Http\Controllers\Api\RabBudgetController::class, 'importAsync']);
     Route::get('/projects/{projectId}/rab', [\App\Http\Controllers\Api\RabBudgetController::class, 'index']);
     Route::post('/rab/submit-for-approval', [\App\Http\Controllers\Api\RabBudgetController::class, 'submitForApproval']);
+});
+
+// Engineer performs the technical RAB approval. ADMIN remains available as a
+// superuser for recovery and controlled overrides.
+Route::middleware(['auth', 'verified', 'role:ADMIN,ENGINEER'])->group(function () {
     Route::post('/rab/approve', [\App\Http\Controllers\Api\RabBudgetController::class, 'approve']);
     Route::post('/rab/reject', [\App\Http\Controllers\Api\RabBudgetController::class, 'reject']);
 });
