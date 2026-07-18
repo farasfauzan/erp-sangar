@@ -34,9 +34,9 @@ Dokumentasi ini menjelaskan alur yang diimplementasikan pada aplikasi saat ini. 
 
 | Role | Tanggung jawab utama |
 | --- | --- |
-| ADMIN | Memantau seluruh modul, mengelola pengguna, dan menerima salinan notifikasi workflow. |
+| ADMIN | Superuser seluruh modul, mengelola pengguna, membantu pemulihan/override terkontrol, dan menerima salinan notifikasi workflow. |
 | LAPANGAN | Membuat PO Proyek, menerima barang, input opname, mengajukan dana, dan mengirim LPJ. |
-| ENGINEER | Memverifikasi kebutuhan PO Proyek dan invoice; menentukan PO Proyek diteruskan ke PO Supplier atau SPK. |
+| ENGINEER | Menyetujui RAB secara teknis, memverifikasi kebutuhan PO Proyek dan invoice, serta memastikan routing PO sesuai kategori RAB. |
 | PURCHASING_LEGAL | Mengelola supplier, membuat PO Supplier dan SPK, serta input tagihan. |
 | VERIFIKATOR_KEU | Memverifikasi dokumen invoice, permohonan dana, LPJ, dan approval cashflow. |
 | MGR_KOMERSIAL | Menyetujui PO Supplier, SPK, invoice, dan permohonan dana/LPJ sesuai tahapnya. |
@@ -49,23 +49,39 @@ Dokumentasi ini menjelaskan alur yang diimplementasikan pada aplikasi saat ini. 
 ### Gambaran Umum
 
 ~~~mermaid
-flowchart LR
-    A[RAB disetujui] --> B[PO Proyek]
-    B --> C[Verifikasi kebutuhan oleh Engineer]
-    C --> D{Arah dokumen}
-    D -->|Material| E[PO Supplier]
-    D -->|Pekerjaan| F[SPK Subkon atau Mandor]
-    E --> G[Approval Manajer]
-    F --> G
-    G --> H{Jenis dokumen}
-    H -->|PO Supplier| I[Penerimaan Barang]
-    H -->|SPK| J[Opname pekerjaan]
-    I --> K[Invoice]
-    J --> K
-    K --> L[Verifikasi dan approval]
-    L --> M[Pembayaran]
-    M --> N[Posting jurnal dan laporan]
+flowchart TD
+    A[Upload file Excel RAB] --> B[Preview seluruh sheet dan pilih sheet RAB]
+    B --> C[Kelompokkan setiap item]
+    C --> D{Kategori}
+    D -->|Material| M[Material]
+    D -->|Subkon| S[Subkon]
+    D -->|Pekerja| P[Pekerja]
+    D -->|Alat| T[Alat]
+    M --> E[Draft RAB]
+    S --> E
+    P --> E
+    T --> E
+    E --> F[Ajukan approval teknis]
+    F --> G{Engineer}
+    G -->|Tolak| C
+    G -->|Setujui| H[RAB terkunci dan siap dipakai]
+    H --> I[PO Proyek per kategori]
+    I --> J{Routing sesuai kategori}
+    J -->|Material| K[PO Supplier]
+    J -->|Subkon| L[SPK Subkon]
+    J -->|Pekerja| N[SPK Mandor]
+    J -->|Alat| O[SPK alat atau sewa]
+    K --> Q[Penerimaan Barang]
+    Q --> R[Stok Material bertambah]
+    L --> U[Opname]
+    N --> U
+    O --> U
+    R --> V[Invoice dan approval pembayaran]
+    U --> V
+    V --> W[Pembayaran, jurnal, dan laporan]
 ~~~
+
+RAB hanya menyimpan rencana biaya. Impor RAB tidak menambah stok. Stok Material baru dibuat atau ditambah setelah barang pada PO Supplier yang disetujui benar-benar dicatat di Penerimaan Barang.
 
 ### Pengadaan: PO Proyek, PO Supplier, dan SPK
 
@@ -78,7 +94,7 @@ flowchart LR
     subgraph ENG["Engineer"]
         B[Verifikasi Kebutuhan]
         C{Sesuai kebutuhan?}
-        D{Pilih tujuan}
+        D{Validasi kategori}
     end
 
     subgraph PUR["Purchasing dan Legal"]
@@ -94,8 +110,9 @@ flowchart LR
     C -->|Tidak| A
     C -->|Ya| D
     D -->|Material| E --> G
-    D -->|Pekerjaan| F --> G
-    G -->|Ditolak| E
+    D -->|Subkon atau Alat| F --> G
+    D -->|Pekerja| J[SPK Mandor] --> G
+    G -->|Ditolak| A
     G -->|Disetujui: PO| H[Penerimaan Barang]
     G -->|Disetujui: SPK| I[Input Opname]
 ~~~
@@ -103,9 +120,11 @@ flowchart LR
 Aturan penting:
 
 - PO Proyek dibuat dari item RAB yang sudah disetujui dan tidak memuat harga supplier.
-- Engineer tidak meng-approve PO Proyek sebagai akhir proses. Engineer memilih tujuan: PO Supplier atau SPK.
+- Satu PO Proyek hanya boleh berisi satu kategori RAB; kategori berbeda harus dipisahkan ke dokumen berbeda.
+- Engineer tidak bebas memilih tujuan yang bertentangan dengan kategori: Material wajib ke PO Supplier, sedangkan Subkon, Pekerja, dan Alat wajib ke SPK.
 - PO Supplier wajib memiliki PO Proyek sumber yang telah diarahkan Engineer ke PURCHASE_ORDER.
 - SPK wajib memiliki PO Proyek sumber yang telah diarahkan Engineer ke SPK.
+- Kategori Pekerja dibuat sebagai SPK Mandor. Subkon dan Alat menggunakan SPK Subkon/jasa.
 - Pada PO Supplier, pengguna dapat memilih data dari Master Supplier. Nama, alamat, telepon, dan PIC diisi otomatis, kemudian masih dapat disesuaikan untuk dokumen tersebut.
 - PO Supplier dan SPK yang sudah dikirim hanya dapat disetujui atau ditolak pada tahap Manajer Komersial.
 
@@ -113,16 +132,19 @@ Aturan penting:
 
 ~~~mermaid
 flowchart LR
-    A[PO Supplier disetujui] --> B[Logistik/Lapangan menerima barang]
-    B --> C[Cek barang dan surat jalan]
-    C --> D[Input Penerimaan Barang]
-    D --> E[Stok inventaris diperbarui]
-    E --> F[Input invoice material]
-    F --> G[Verifikasi Engineer]
-    G --> H[Verifikasi Keuangan]
-    H --> I[Approval Manajer]
-    I --> J[Approval Cashflow]
-    J --> K[Eksekusi pembayaran]
+    A[RAB kategori Material] --> B[PO Proyek]
+    B --> C[Engineer arahkan ke PO Supplier]
+    C --> D[PO Supplier disetujui]
+    D --> E[Logistik/Lapangan menerima barang]
+    E --> F[Cek barang dan surat jalan]
+    F --> G[Input Penerimaan Barang]
+    G --> H[Stok Material dibuat atau ditambah]
+    H --> I[Input invoice material]
+    I --> J[Verifikasi Engineer]
+    J --> K[Verifikasi Keuangan]
+    K --> L[Approval Manajer]
+    L --> M[Approval Cashflow]
+    M --> N[Eksekusi pembayaran]
 ~~~
 
 Invoice material hanya dapat dibuat untuk PO Supplier yang sudah memiliki penerimaan barang. Dokumen wajib untuk verifikasi finance adalah Invoice, PO, dan Surat Jalan.
@@ -190,6 +212,7 @@ Setiap perpindahan dokumen utama membuat notifikasi tersimpan di ikon lonceng pa
 
 | Kejadian | Tujuan notifikasi |
 | --- | --- |
+| RAB diajukan | Engineer: Approval RAB teknis |
 | PO Proyek dibuat | Engineer: Verifikasi Kebutuhan |
 | Engineer merouting PO ke PO Supplier atau SPK | Purchasing dan Legal |
 | PO Supplier atau SPK dikirim | Manajer Komersial |
@@ -206,21 +229,23 @@ ADMIN menerima salinan notifikasi agar dapat memantau seluruh handoff workflow.
 
 ### Membuat PO Supplier dari kebutuhan proyek
 
-1. Lapangan membuat PO Proyek pada menu Purchase Orders.
-2. Engineer membuka Verifikasi Kebutuhan dan memilih Ke PO Supplier.
-3. Purchasing dan Legal menerima notifikasi, membuka Purchase Orders, lalu membuat PO Supplier.
-4. Pada form PO Supplier, pilih PO Proyek sumber dan pilih supplier dari Master Supplier bila sudah terdaftar.
-5. Klik Kirim Approval pada daftar PO.
-6. Manajer Komersial melakukan approval.
-7. Saat material tiba, catat pada menu Penerimaan Barang.
+1. Pastikan item RAB berkategori Material dan sudah disetujui Engineer.
+2. Lapangan membuat PO Proyek pada menu Purchase Orders; satu PO hanya berisi kategori Material.
+3. Engineer membuka Verifikasi Kebutuhan dan meneruskan ke PO Supplier.
+4. Purchasing dan Legal menerima notifikasi, membuka Purchase Orders, lalu membuat PO Supplier.
+5. Pada form PO Supplier, pilih PO Proyek sumber dan pilih supplier dari Master Supplier bila sudah terdaftar.
+6. Klik Kirim Approval pada daftar PO.
+7. Manajer Komersial melakukan approval.
+8. Saat material tiba, catat pada menu Penerimaan Barang; pada tahap ini stok baru bertambah.
 
 ### Membuat SPK dari kebutuhan proyek
 
-1. Lapangan membuat PO Proyek.
-2. Engineer membuka Verifikasi Kebutuhan dan memilih Ke SPK.
-3. Purchasing dan Legal membuka Kontrak SPK dan membuat SPK dari PO Proyek sumber.
-4. Kirim SPK untuk approval Manajer Komersial.
-5. Setelah disetujui, Lapangan mencatat progres melalui Input Opname.
+1. Pastikan item RAB berkategori Subkon, Pekerja, atau Alat dan sudah disetujui Engineer.
+2. Lapangan membuat PO Proyek terpisah untuk satu kategori tersebut.
+3. Engineer membuka Verifikasi Kebutuhan dan meneruskan ke SPK sesuai kategori.
+4. Purchasing dan Legal membuka Kontrak SPK dan membuat SPK dari PO Proyek sumber; kategori Pekerja otomatis menggunakan tipe Mandor.
+5. Kirim SPK untuk approval Manajer Komersial.
+6. Setelah disetujui, Lapangan mencatat progres melalui Input Opname.
 
 ### Memproses invoice
 

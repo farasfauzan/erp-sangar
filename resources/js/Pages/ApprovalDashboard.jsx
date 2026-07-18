@@ -9,6 +9,7 @@ import InputPromptModal from '@/Components/ui/InputPromptModal';
 
 const money = (value) => `Rp ${Number(value || 0).toLocaleString('id-ID')}`;
 const docType = (invoice) => invoice.invoiceable_type?.includes('PurchaseOrder') ? 'PO Material' : 'SPK Subkon';
+const poCategory = (po) => String(po.items?.[0]?.rab_budget?.category || '').split(' / ')[0];
 
 export default function ApprovalDashboard() {
     const roleName = usePage().props.auth?.user?.role?.role_name || '';
@@ -80,7 +81,7 @@ export default function ApprovalDashboard() {
             onConfirm: async () => {
                 setConfirmState({ open: false, title: '', message: '', onConfirm: null });
                 try {
-                    await api.post('/api/rab/approve', { item_ids: [...rabSelected] });
+                    await api.post('/rab/approve', { item_ids: [...rabSelected] });
                     fetchRabPending(rabProjectId);
                 } catch (err) { /* toast shown by useApi */ }
             }
@@ -96,7 +97,7 @@ export default function ApprovalDashboard() {
             onConfirm: async () => {
                 setConfirmState({ open: false, title: '', message: '', onConfirm: null });
                 try {
-                    await api.post('/api/rab/reject', { item_ids: [...rabSelected] });
+                    await api.post('/rab/reject', { item_ids: [...rabSelected] });
                     fetchRabPending(rabProjectId);
                 } catch (err) { /* toast shown by useApi */ }
             }
@@ -112,7 +113,7 @@ export default function ApprovalDashboard() {
             onConfirm: async () => {
                 setConfirmState({ open: false, title: '', message: '', onConfirm: null });
                 try {
-                    await api.post('/api/rab/approve', { project_id: parseInt(rabProjectId) });
+                    await api.post('/rab/approve', { project_id: parseInt(rabProjectId) });
                     fetchRabPending(rabProjectId);
                 } catch (err) { /* toast shown by useApi */ }
             }
@@ -175,13 +176,14 @@ export default function ApprovalDashboard() {
                                                 {projects.map(p => <option key={p.id} value={p.id}>{p.project_name || p.name}</option>)}
                                             </select>
                                         </div>
-                                        {rabPending.length > 0 && (
+                                        {rabPending.length > 0 && can('ENGINEER') && (
                                             <div className="flex gap-2">
                                                 <Button onClick={approveRabSelected}>Setujui Terpilih ({rabSelected.size})</Button>
                                                 <Button danger onClick={rejectRabSelected}>Tolak Terpilih ({rabSelected.size})</Button>
                                                 <Button onClick={approveRabAll}>Setujui Semua ({rabPending.length})</Button>
                                             </div>
                                         )}
+                                        {rabPending.length > 0 && !can('ENGINEER') && <span className="text-xs text-gray-500">Menunggu approval teknis Engineer</span>}
                                     </div>
                                     {rabPending.length > 0 ? (
                                         <table className="min-w-full divide-y divide-gray-200">
@@ -227,14 +229,17 @@ export default function ApprovalDashboard() {
                                     <tr key={po.id}>
                                         <Td strong>{po.po_number}</Td>
                                         <Td>{po.project?.project_name ?? 'N/A'}</Td>
-                                        <Td>PO Proyek</Td>
+                                        <Td>PO Proyek · {poCategory(po) || 'Tanpa kategori'}</Td>
                                         <Td>{po.items?.length || 0} item</Td>
                                         <Td>{po.status}</Td>
                                         <Td>
-                                            {can('ENGINEER') ? <>
-                                                <Button onClick={() => run('put', `/api/pos/${po.id}/route`, 'Teruskan PO ini ke PO Supplier?', { routed_to: 'PURCHASE_ORDER' })}>Ke PO Supplier</Button>
-                                                <Button onClick={() => run('put', `/api/pos/${po.id}/route`, 'Teruskan PO ini ke SPK?', { routed_to: 'SPK' })}>Ke SPK</Button>
-                                            </> : <span className="text-xs text-gray-500">Menunggu Engineer</span>}
+                                            {can('ENGINEER') ? (
+                                                poCategory(po) === 'Material'
+                                                    ? <Button onClick={() => run('put', `/api/pos/${po.id}/route`, 'Teruskan item Material ini ke PO Supplier?', { routed_to: 'PURCHASE_ORDER' })}>Ke PO Supplier</Button>
+                                                    : poCategory(po)
+                                                        ? <Button onClick={() => run('put', `/api/pos/${po.id}/route`, `Teruskan item ${poCategory(po)} ini ke SPK?`, { routed_to: 'SPK' })}>Ke SPK</Button>
+                                                        : <span className="text-xs text-red-600">Kategori RAB belum tersedia</span>
+                                            ) : <span className="text-xs text-gray-500">Menunggu Engineer</span>}
                                         </Td>
                                     </tr>
                                 ))}

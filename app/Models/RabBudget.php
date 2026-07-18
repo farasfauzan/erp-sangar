@@ -27,6 +27,39 @@ class RabBudget extends Model
     const STATUS_REJECTED = 'REJECTED';
     const STATUS_ARCHIVED = 'ARCHIVED';
 
+    const CATEGORY_MATERIAL = 'Material';
+    const CATEGORY_SUBCON = 'Subkon';
+    const CATEGORY_WORKER = 'Pekerja';
+    const CATEGORY_EQUIPMENT = 'Alat';
+
+    public function getBaseCategoryAttribute(): ?string
+    {
+        $category = trim((string) $this->category);
+        if ($category === '') {
+            return null;
+        }
+
+        $base = trim(explode(' / ', $category, 2)[0]);
+
+        // Keep legacy RAB rows usable after the manual categories were added.
+        return strcasecmp($base, 'Upah') === 0 ? self::CATEGORY_WORKER : $base;
+    }
+
+    public function isCategory(string $category): bool
+    {
+        return strcasecmp((string) $this->base_category, $category) === 0;
+    }
+
+    public function isMaterial(): bool
+    {
+        return $this->isCategory(self::CATEGORY_MATERIAL);
+    }
+
+    public function procurementDestination(): string
+    {
+        return $this->isMaterial() ? 'PURCHASE_ORDER' : 'SPK';
+    }
+
     public function project()
     {
         return $this->belongsTo(Project::class);

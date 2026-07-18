@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import { useApi } from '@/hooks/useApi';
 import { useProjects } from '@/hooks/useProjects';
 
+const baseCategory = (value = '') => String(value).split(' / ')[0] || '';
+
 export default function CreatePO() {
     const { projects } = useProjects();
     const [rabBudgets, setRabBudgets] = useState([]);
@@ -138,6 +140,13 @@ export default function CreatePO() {
     const afterDiscount = subtotal - discountAmount;
     const tax = data.include_ppn ? afterDiscount * 0.11 : 0;
     const grandTotal = afterDiscount + tax;
+    const selectedCategory = data.items
+        .map((item) => rabBudgets.find((rab) => String(rab.id) === String(item.rab_budget_id)))
+        .filter(Boolean)
+        .map((rab) => baseCategory(rab.category))[0] || '';
+    const eligibleRabBudgets = rabBudgets.filter((rab) => (
+        rab.status === 'APPROVED' && (!selectedCategory || baseCategory(rab.category) === selectedCategory)
+    ));
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -313,7 +322,7 @@ export default function CreatePO() {
                                 {/* Items */}
                                 <div className="mb-6">
                                     <div className="flex justify-between items-center mb-3">
-                                        <h4 className="text-md font-bold">Item PO</h4>
+                                        <div><h4 className="text-md font-bold">Item PO</h4><p className="text-xs text-gray-500">Satu dokumen hanya berisi satu kategori. Material menuju PO Supplier; Subkon, Pekerja, dan Alat menuju SPK.</p></div>
                                         <button type="button" onClick={addItem} className="bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-600">
                                             + Tambah Item
                                         </button>
@@ -335,8 +344,8 @@ export default function CreatePO() {
                                                                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                                                             >
                                                                 <option value="">-- Pilih --</option>
-                                                                {rabBudgets.map(rab => (
-                                                                    <option key={rab.id} value={rab.id}>{rab.code_item} - {rab.description}</option>
+                                                                {eligibleRabBudgets.map(rab => (
+                                                                    <option key={rab.id} value={rab.id}>[{baseCategory(rab.category)}] {rab.code_item} - {rab.description}</option>
                                                                 ))}
                                                             </select>
                                                         </div>

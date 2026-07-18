@@ -81,7 +81,7 @@ class ManualRabImportTest extends TestCase
         $response->assertOk()->assertJsonPath('data.imported', 2);
         $this->assertDatabaseHas('rab_budgets', ['code_item' => 'M-001', 'category' => 'Material / Struktur']);
         $this->assertDatabaseHas('rab_budgets', ['code_item' => 'S-001', 'category' => 'Subkon / Struktur']);
-        $this->assertDatabaseCount('inventory_stocks', 2);
+        $this->assertDatabaseCount('inventory_stocks', 0);
     }
 
     public function test_category_is_required_for_every_reviewed_row(): void
@@ -147,7 +147,7 @@ class ManualRabImportTest extends TestCase
             'category' => 'Material / Struktur',
             'source_row' => 11,
         ]);
-        $this->assertDatabaseCount('inventory_stocks', 1);
+        $this->assertDatabaseCount('inventory_stocks', 0);
     }
 
     public function test_first_user_claims_a_row_for_parallel_review(): void

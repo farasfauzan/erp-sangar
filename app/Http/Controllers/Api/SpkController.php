@@ -47,7 +47,9 @@ class SpkController extends Controller
             'jadwal_kirim'  => 'nullable|date',
         ]);
 
-        $sourcePo = ! empty($validated['source_po_id']) ? PurchaseOrder::findOrFail($validated['source_po_id']) : null;
+        $sourcePo = ! empty($validated['source_po_id'])
+            ? PurchaseOrder::with('items.rabBudget')->findOrFail($validated['source_po_id'])
+            : null;
         if ($sourcePo && ($sourcePo->po_level !== 'PROJECT' || $sourcePo->routed_to !== 'SPK' || $sourcePo->status !== 'ROUTED')) {
             return response()->json([
                 'message' => 'SPK harus berasal dari PO Proyek yang sudah diarahkan Engineer ke SPK.',
@@ -58,6 +60,26 @@ class SpkController extends Controller
         }
         if ($sourcePo && $sourcePo->childSpks()->exists()) {
             return response()->json(['message' => 'PO Proyek ini sudah memiliki SPK turunan.'], 422);
+        }
+        if ($sourcePo) {
+            $categories = $sourcePo->items
+                ->pluck('rabBudget')
+                ->filter()
+                ->map(fn ($rab) => $rab->base_category)
+                ->unique();
+            if ($categories->count() !== 1) {
+                return response()->json(['message' => 'PO sumber SPK harus berisi tepat satu kategori RAB.'], 422);
+            }
+            $category = $categories->first();
+            if ($category === 'Material') {
+                return response()->json(['message' => 'Kategori Material harus diproses melalui PO Supplier, bukan SPK.'], 422);
+            }
+            if ($category === 'Pekerja' && $validated['spk_type'] !== 'MANDOR') {
+                return response()->json(['message' => 'Kategori Pekerja harus dibuat sebagai SPK Mandor.'], 422);
+            }
+            if ($category !== 'Pekerja' && $validated['spk_type'] === 'MANDOR') {
+                return response()->json(['message' => 'SPK Mandor hanya untuk RAB kategori Pekerja.'], 422);
+            }
         }
 
         $includePpn = $validated['include_ppn'] ?? true;

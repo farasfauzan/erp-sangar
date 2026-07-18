@@ -117,26 +117,33 @@ class PurchaseOrderController extends Controller
         }
 
         $budgetIds = collect($validated['items'])->pluck('rab_budget_id')->unique();
-        $matchingBudgetCount = RabBudget::query()
+        $budgets = RabBudget::query()
             ->where('project_id', $validated['project_id'])
             ->whereIn('id', $budgetIds)
-            ->count();
+            ->get();
 
-        if ($matchingBudgetCount !== $budgetIds->count()) {
+        if ($budgets->count() !== $budgetIds->count()) {
             return response()->json([
                 'message' => 'Setiap item PO harus berasal dari RAB pada proyek yang sama.',
             ], 422);
         }
 
-        $approvedBudgetCount = RabBudget::query()
-            ->where('project_id', $validated['project_id'])
-            ->whereIn('id', $budgetIds)
-            ->where('status', RabBudget::STATUS_APPROVED)
-            ->count();
-
-        if ($approvedBudgetCount !== $budgetIds->count()) {
+        if ($budgets->where('status', RabBudget::STATUS_APPROVED)->count() !== $budgetIds->count()) {
             return response()->json([
                 'message' => 'PO hanya dapat dibuat dari item RAB yang sudah disetujui.',
+            ], 422);
+        }
+
+        $categories = $budgets->map(fn (RabBudget $rab) => $rab->base_category ?: 'Tanpa Kategori')->unique();
+        if ($categories->count() !== 1) {
+            return response()->json([
+                'message' => 'Satu PO Proyek hanya boleh berisi satu kategori RAB. Pisahkan Material, Subkon, Pekerja, dan Alat ke dokumen berbeda.',
+            ], 422);
+        }
+        $destinations = $budgets->map(fn (RabBudget $rab) => $rab->procurementDestination())->unique();
+        if ($poLevel === 'SUPPLIER' && $destinations->first() !== 'PURCHASE_ORDER') {
+            return response()->json([
+                'message' => 'PO Supplier hanya boleh berisi item RAB kategori Material.',
             ], 422);
         }
 
@@ -283,7 +290,7 @@ class PurchaseOrderController extends Controller
     public function submit(Request $request, $id)
     {
         $po = DB::transaction(function () use ($request, $id) {
-            $po = PurchaseOrder::lockForUpdate()->findOrFail($id);
+            $po = PurchaseOrder::with('items.rabBudget')->lockForUpdate()->findOrFail($id);
             WorkflowState::require(
                 $po->status,
                 ['DRAFT'],
@@ -432,6 +439,20 @@ class PurchaseOrderController extends Controller
             );
             if ($po->childPurchaseOrders()->exists() || $po->childSpks()->exists()) {
                 WorkflowState::fail('PO Proyek sudah memiliki dokumen turunan dan tidak dapat diarahkan ulang.');
+            }
+            $budgets = $po->items->pluck('rabBudget')->filter();
+            if ($budgets->count() !== $po->items->count() || $budgets->isEmpty()) {
+                WorkflowState::fail('Semua item PO harus terhubung ke RAB berkategori sebelum diarahkan.');
+            }
+            $categories = $budgets->map(fn (RabBudget $rab) => $rab->base_category)->unique();
+            if ($categories->count() !== 1) {
+                WorkflowState::fail('PO Proyek berisi beberapa kategori. Pisahkan dokumen per kategori sebelum routing.');
+            }
+            $expectedDestination = $budgets->first()->procurementDestination();
+            if ($validated['routed_to'] !== $expectedDestination) {
+                $category = $categories->first();
+                $destinationLabel = $expectedDestination === 'PURCHASE_ORDER' ? 'PO Supplier' : 'SPK';
+                WorkflowState::fail("Kategori {$category} harus diarahkan ke {$destinationLabel}.");
             }
             $po->update([
                 'routed_to' => $validated['routed_to'],

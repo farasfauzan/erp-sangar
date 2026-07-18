@@ -157,4 +157,34 @@ class GoodsReceiptControllerTest extends TestCase
             ]],
         ])->assertUnprocessable();
     }
+
+    public function test_non_material_rab_cannot_enter_inventory_through_goods_receipt(): void
+    {
+        $this->actingAsRole('LAPANGAN');
+        $po = PurchaseOrder::factory()->approved()->create();
+        $rab = RabBudget::factory()->approved()->create([
+            'project_id' => $po->project_id,
+            'category' => 'Subkon / Struktur',
+        ]);
+        $poItem = PoItem::factory()->create([
+            'purchase_order_id' => $po->id,
+            'rab_budget_id' => $rab->id,
+            'qty' => 1,
+        ]);
+
+        $this->postJson('/api/goods-receipts', [
+            'purchase_order_id' => $po->id,
+            'receipt_number' => 'GR-SUBKON-001',
+            'receipt_date' => '2026-07-10',
+            'receiver_name' => 'Petugas',
+            'items' => [[
+                'po_item_id' => $poItem->id,
+                'quantity_received' => 1,
+            ]],
+        ])->assertUnprocessable()
+            ->assertJsonPath('message', 'Penerimaan barang hanya untuk item RAB kategori Material. Subkon, Pekerja, dan Alat diproses melalui SPK/opname.');
+
+        $this->assertDatabaseCount('goods_receipts', 0);
+        $this->assertDatabaseCount('inventory_stocks', 0);
+    }
 }

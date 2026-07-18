@@ -62,6 +62,12 @@ class GoodsReceiptController extends Controller
             if ($receiptItems === []) {
                 WorkflowState::fail('Tidak ada sisa kuantitas PO yang dapat diterima.');
             }
+            foreach ($receiptItems as $receiptItem) {
+                $rab = $receiptItem['po_item']->rabBudget;
+                if (! $rab || ! $rab->isMaterial()) {
+                    WorkflowState::fail('Penerimaan barang hanya untuk item RAB kategori Material. Subkon, Pekerja, dan Alat diproses melalui SPK/opname.');
+                }
+            }
 
             $receipt = GoodsReceipt::create(collect($validated)->except('items')->all());
             foreach ($receiptItems as $receiptItem) {

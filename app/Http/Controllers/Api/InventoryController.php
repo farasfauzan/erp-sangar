@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\InventoryStock;
+use App\Models\RabBudget;
 use App\Models\StockMovement;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -43,6 +44,18 @@ class InventoryController extends Controller
             'quantity'        => 'required|numeric|min:0.001',
             'location'        => 'nullable|string|max:255',
         ]);
+
+        if ($request->rab_budget_id) {
+            $rab = RabBudget::findOrFail($request->rab_budget_id);
+            if ((int) $rab->project_id !== (int) $request->project_id) {
+                return response()->json(['message' => 'Item RAB harus berasal dari proyek yang sama.'], 422);
+            }
+            if (! $rab->isMaterial()) {
+                return response()->json([
+                    'message' => 'Hanya RAB kategori Material yang dapat dicatat sebagai stok.',
+                ], 422);
+            }
+        }
 
         $identity = ['project_id' => $request->project_id];
         if ($request->rab_budget_id) {

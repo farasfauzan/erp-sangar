@@ -332,4 +332,50 @@ class PurchaseOrderControllerTest extends TestCase
         $this->putJson("/api/pos/{$po->id}/approve")
             ->assertForbidden();
     }
+
+    public function test_engineer_routing_is_determined_by_rab_category(): void
+    {
+        $this->actingAsRole('ENGINEER');
+        $project = Project::factory()->create();
+
+        $material = RabBudget::factory()->approved()->create([
+            'project_id' => $project->id,
+            'category' => 'Material / Struktur',
+        ]);
+        $materialPo = PurchaseOrder::factory()->create([
+            'project_id' => $project->id,
+            'po_level' => 'PROJECT',
+            'status' => 'DRAFT',
+        ]);
+        PoItem::factory()->create([
+            'purchase_order_id' => $materialPo->id,
+            'rab_budget_id' => $material->id,
+        ]);
+
+        $this->putJson("/api/pos/{$materialPo->id}/route", ['routed_to' => 'SPK'])
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'Kategori Material harus diarahkan ke PO Supplier.');
+        $this->putJson("/api/pos/{$materialPo->id}/route", ['routed_to' => 'PURCHASE_ORDER'])
+            ->assertOk();
+
+        $subkon = RabBudget::factory()->approved()->create([
+            'project_id' => $project->id,
+            'category' => 'Subkon / Arsitektur',
+        ]);
+        $subkonPo = PurchaseOrder::factory()->create([
+            'project_id' => $project->id,
+            'po_level' => 'PROJECT',
+            'status' => 'DRAFT',
+        ]);
+        PoItem::factory()->create([
+            'purchase_order_id' => $subkonPo->id,
+            'rab_budget_id' => $subkon->id,
+        ]);
+
+        $this->putJson("/api/pos/{$subkonPo->id}/route", ['routed_to' => 'PURCHASE_ORDER'])
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'Kategori Subkon harus diarahkan ke SPK.');
+        $this->putJson("/api/pos/{$subkonPo->id}/route", ['routed_to' => 'SPK'])
+            ->assertOk();
+    }
 }

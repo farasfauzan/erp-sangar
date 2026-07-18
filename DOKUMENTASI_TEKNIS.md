@@ -121,7 +121,7 @@ rep-sangar/
 | **FundRequest** | `fund_requests` | Permintaan dana (LPJ) |
 | **FundReceipt** | `fund_receipts` | Penerimaan dana |
 | **PaymentExecution** | (via Invoice) | Eksekusi pembayaran |
-| **Opname** | `opnames` | Stock opname |
+| **Opname** | `opnames` | Progres/nilai pekerjaan SPK |
 | **InventoryStock** | `inventory_stocks` | Master barang/stok |
 | **StockMovement** | `stock_movements` | Mutasi stok in/out/adjust |
 | **PurchaseRequisition** | `purchase_requisitions` | PR sebelum PO |
@@ -380,9 +380,11 @@ Engineer Verify → Finance Verify → Cashflow Approve → Manager Approve → 
 - Restitusi PPN workflow
 
 ### 8. Inventory — `InventoryController`
-- Master barang (`InventoryStock`)
-- Mutasi: `receive` (GR), `adjust` (opname), `movements` (history)
-- Opname: `OpnameController` → approve/reject
+- `InventoryStock` hanya untuk item RAB kategori Material atau stok manual tanpa relasi RAB.
+- Impor RAB tidak membuat stok. `GoodsReceiptController` membuat/menambah stok ketika Material dari PO yang disetujui diterima.
+- Kategori Subkon, Pekerja, dan Alat ditolak oleh Penerimaan Barang dan diarahkan ke SPK/opname.
+- Mutasi: `receive` (penerimaan barang), `adjust` (koreksi stok), `movements` (riwayat).
+- `OpnameController` adalah progres pekerjaan SPK, bukan penerimaan stok Material.
 
 ---
 
