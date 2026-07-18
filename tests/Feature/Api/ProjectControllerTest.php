@@ -2,9 +2,9 @@
 
 namespace Tests\Feature\Api;
 
-use App\Models\Project;
 use App\Models\GoodsReceipt;
 use App\Models\PoItem;
+use App\Models\Project;
 use App\Models\PurchaseOrder;
 use App\Models\RabBudget;
 use Illuminate\Support\Facades\DB;
@@ -32,6 +32,28 @@ class ProjectControllerTest extends TestCase
                 ],
             ])
             ->assertJson(['success' => true]);
+    }
+
+    public function test_index_includes_pending_approval_count_for_each_project(): void
+    {
+        $this->actingAsRole('ADMIN');
+        $project = Project::factory()->create();
+
+        RabBudget::factory()->count(2)->pending()->create(['project_id' => $project->id]);
+        PurchaseOrder::factory()->create([
+            'project_id' => $project->id,
+            'po_level' => 'PROJECT',
+            'status' => 'DRAFT',
+        ]);
+        PurchaseOrder::factory()->approved()->create([
+            'project_id' => $project->id,
+            'po_level' => 'SUPPLIER',
+        ]);
+
+        $this->getJson('/api/projects')
+            ->assertOk()
+            ->assertJsonPath('data.data.0.id', $project->id)
+            ->assertJsonPath('data.data.0.pending_approval_count', 3);
     }
 
     // ─── SHOW ─────────────────────────────────────────────────────────────
@@ -63,8 +85,8 @@ class ProjectControllerTest extends TestCase
 
         $this->postJson('/api/projects', [
             'project_name' => 'Proyek Baru',
-            'location'     => 'Bandung',
-            'start_date'   => '2026-08-01',
+            'location' => 'Bandung',
+            'start_date' => '2026-08-01',
         ])
             ->assertCreated()
             ->assertJsonPath('success', true)
@@ -72,7 +94,7 @@ class ProjectControllerTest extends TestCase
 
         $this->assertDatabaseHas('projects', [
             'project_name' => 'Proyek Baru',
-            'location'     => 'Bandung',
+            'location' => 'Bandung',
         ]);
     }
 
@@ -82,8 +104,8 @@ class ProjectControllerTest extends TestCase
 
         $this->postJson('/api/projects', [
             'project_name' => 'Proyek Komersial',
-            'location'     => 'Surabaya',
-            'start_date'   => '2026-09-01',
+            'location' => 'Surabaya',
+            'start_date' => '2026-09-01',
         ])
             ->assertCreated();
     }
@@ -103,8 +125,8 @@ class ProjectControllerTest extends TestCase
 
         $this->postJson('/api/projects', [
             'project_name' => 'Tidak Boleh',
-            'location'     => 'Jakarta',
-            'start_date'   => '2026-08-01',
+            'location' => 'Jakarta',
+            'start_date' => '2026-08-01',
         ])
             ->assertForbidden();
     }
@@ -118,14 +140,14 @@ class ProjectControllerTest extends TestCase
 
         $this->putJson("/api/projects/{$project->id}", [
             'project_name' => 'Nama Diubah',
-            'status'       => 'active',
+            'status' => 'active',
         ])
             ->assertOk()
             ->assertJsonPath('data.project_name', 'Nama Diubah')
             ->assertJsonPath('data.status', 'active');
 
         $this->assertDatabaseHas('projects', [
-            'id'     => $project->id,
+            'id' => $project->id,
             'status' => 'active',
         ]);
     }

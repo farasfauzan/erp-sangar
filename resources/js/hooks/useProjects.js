@@ -26,7 +26,7 @@ export function useProjects() {
 
         if (!_promise) {
             _promise = axios
-                .get('/api/projects')
+                .get('/api/projects', { params: { per_page: 100 } })
                 .then((res) => {
                     const list = res.data?.data?.data ?? res.data?.data ?? res.data ?? [];
                     _cache = Array.isArray(list) ? list : [];
@@ -56,7 +56,7 @@ export function useProjects() {
         _cache = null;
         setLoading(true);
         try {
-            const res = await axios.get('/api/projects');
+            const res = await axios.get('/api/projects', { params: { per_page: 100 } });
             const list = res.data?.data?.data ?? res.data?.data ?? res.data ?? [];
             _cache = Array.isArray(list) ? list : [];
             setProjects(_cache);

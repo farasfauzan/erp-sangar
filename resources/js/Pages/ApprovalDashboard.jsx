@@ -11,6 +11,76 @@ const money = (value) => `Rp ${Number(value || 0).toLocaleString('id-ID')}`;
 const docType = (invoice) => invoice.invoiceable_type?.includes('PurchaseOrder') ? 'PO Material' : 'SPK Subkon';
 const poCategory = (po) => String(po.items?.[0]?.rab_budget?.category || '').split(' / ')[0];
 
+function ProjectApprovalPicker({ projects, value, onChange }) {
+    const [open, setOpen] = useState(false);
+    const selectedProject = projects.find((project) => String(project.id) === String(value));
+    const selectedCount = Number(selectedProject?.pending_approval_count || 0);
+
+    const choose = (projectId) => {
+        onChange(String(projectId || ''));
+        setOpen(false);
+    };
+
+    return (
+        <div className="relative">
+            <button
+                type="button"
+                onClick={() => setOpen((current) => !current)}
+                className="flex w-full items-center gap-3 rounded-md border border-gray-300 bg-white px-3 py-2 text-left text-sm shadow-sm transition hover:border-blue-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                aria-haspopup="listbox"
+                aria-expanded={open}
+            >
+                <span className={`min-w-0 flex-1 truncate ${selectedProject ? 'text-gray-900' : 'text-gray-500'}`}>
+                    {selectedProject?.project_name || selectedProject?.name || '-- Pilih proyek --'}
+                </span>
+                {selectedCount > 0 && (
+                    <span className="flex-none rounded-full bg-rose-100 px-2 py-0.5 text-xs font-semibold text-rose-700">
+                        {selectedCount} menunggu
+                    </span>
+                )}
+                <svg className={`h-4 w-4 flex-none text-gray-500 transition ${open ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="m19 9-7 7-7-7" />
+                </svg>
+            </button>
+
+            {open && (
+                <div className="absolute left-0 right-0 z-30 mt-1 max-h-72 overflow-y-auto rounded-md border border-gray-200 bg-white p-1 shadow-xl" role="listbox">
+                    <button
+                        type="button"
+                        onClick={() => choose('')}
+                        className="flex w-full rounded px-3 py-2 text-left text-sm text-gray-500 hover:bg-gray-50"
+                    >
+                        -- Pilih proyek --
+                    </button>
+                    {projects.map((project) => {
+                        const count = Number(project.pending_approval_count || 0);
+                        const selected = String(project.id) === String(value);
+
+                        return (
+                            <button
+                                key={project.id}
+                                type="button"
+                                onClick={() => choose(project.id)}
+                                className={`flex w-full items-center gap-3 rounded px-3 py-2 text-left text-sm ${selected ? 'bg-blue-50 text-blue-900' : 'text-gray-700 hover:bg-gray-50'}`}
+                                role="option"
+                                aria-selected={selected}
+                            >
+                                <span className="min-w-0 flex-1 truncate">{project.project_name || project.name}</span>
+                                {count > 0 && (
+                                    <span className="flex-none rounded-full bg-rose-600 px-2 py-0.5 text-xs font-bold text-white">
+                                        {count}
+                                    </span>
+                                )}
+                            </button>
+                        );
+                    })}
+                    {projects.length === 0 && <p className="px-3 py-2 text-sm text-gray-500">Belum ada proyek.</p>}
+                </div>
+            )}
+        </div>
+    );
+}
+
 export default function ApprovalDashboard() {
     const roleName = usePage().props.auth?.user?.role?.role_name || '';
     const can = (...roles) => roleName === 'ADMIN' || roles.includes(roleName);
@@ -18,7 +88,7 @@ export default function ApprovalDashboard() {
     const [rabPending, setRabPending] = useState([]);
     const [rabProjectId, setRabProjectId] = useState('');
     const [rabSelected, setRabSelected] = useState(new Set());
-    const { projects } = useProjects();
+    const { projects, refresh: refreshProjects } = useProjects();
     const [loading, setLoading] = useState(true);
     const [confirmState, setConfirmState] = useState({ open: false, title: '', message: '', onConfirm: null });
     const [promptState, setPromptState] = useState({ open: false, defaultValue: '', callback: null });
@@ -82,7 +152,7 @@ export default function ApprovalDashboard() {
                 setConfirmState({ open: false, title: '', message: '', onConfirm: null });
                 try {
                     await api.post('/rab/approve', { item_ids: [...rabSelected] });
-                    fetchRabPending(rabProjectId);
+                    await Promise.all([fetchRabPending(rabProjectId), refreshProjects()]);
                 } catch (err) { /* toast shown by useApi */ }
             }
         });
@@ -98,7 +168,7 @@ export default function ApprovalDashboard() {
                 setConfirmState({ open: false, title: '', message: '', onConfirm: null });
                 try {
                     await api.post('/rab/reject', { item_ids: [...rabSelected] });
-                    fetchRabPending(rabProjectId);
+                    await Promise.all([fetchRabPending(rabProjectId), refreshProjects()]);
                 } catch (err) { /* toast shown by useApi */ }
             }
         });
@@ -114,7 +184,7 @@ export default function ApprovalDashboard() {
                 setConfirmState({ open: false, title: '', message: '', onConfirm: null });
                 try {
                     await api.post('/rab/approve', { project_id: parseInt(rabProjectId) });
-                    fetchRabPending(rabProjectId);
+                    await Promise.all([fetchRabPending(rabProjectId), refreshProjects()]);
                 } catch (err) { /* toast shown by useApi */ }
             }
         });
@@ -129,7 +199,7 @@ export default function ApprovalDashboard() {
                 setConfirmState({ open: false, title: '', message: '', onConfirm: null });
                 try {
                     await api[method](url, payload);
-                    await fetchData();
+                    await Promise.all([fetchData(), refreshProjects()]);
                 } catch (err) { /* toast shown by useApi */ }
             }
         });
@@ -165,16 +235,13 @@ export default function ApprovalDashboard() {
                                 <div className="p-6">
                                     <h3 className="mb-4 text-lg font-bold">Approval RAB Per Item</h3>
                                     <div className="mb-4 flex items-end gap-3">
-                                        <div>
+                                        <div className="w-full max-w-sm">
                                             <label className="block text-sm font-medium text-gray-700 mb-1">Pilih Proyek</label>
-                                            <select
+                                            <ProjectApprovalPicker
+                                                projects={projects}
                                                 value={rabProjectId}
-                                                onChange={(e) => { setRabProjectId(e.target.value); fetchRabPending(e.target.value); }}
-                                                className="rounded border-gray-300 text-sm"
-                                            >
-                                                <option value="">-- Pilih --</option>
-                                                {projects.map(p => <option key={p.id} value={p.id}>{p.project_name || p.name}</option>)}
-                                            </select>
+                                                onChange={(projectId) => { setRabProjectId(projectId); fetchRabPending(projectId); }}
+                                            />
                                         </div>
                                         {rabPending.length > 0 && can('ENGINEER') && (
                                             <div className="flex gap-2">
