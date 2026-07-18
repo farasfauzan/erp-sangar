@@ -11,6 +11,12 @@ export default function Authenticated({ header, children }) {
     const currentUrl = usePage().url;
 
     const [sidebarOpen, setSidebarOpen] = useState(false);
+    const [approvalUnreadCounts, setApprovalUnreadCounts] = useState({
+        all: 0,
+        main: 0,
+        needs: 0,
+        invoices: 0,
+    });
 
     // Close sidebar on route change (mobile)
     useEffect(() => {
@@ -69,7 +75,7 @@ export default function Authenticated({ header, children }) {
                     { name: 'Penerimaan Barang', route: 'goods-receipts' },
                     { name: 'Input Opname', route: 'opname' },
                     { name: 'Input Tagihan', route: 'invoicing' },
-                    { name: 'Approval', route: 'approval' },
+                    { name: 'Approval', route: 'approval', approvalBadge: 'all' },
                     { name: 'LPJ & Permohonan', route: 'fund-requests' },
                     { name: 'Pembayaran', route: 'payment' },
                     { name: 'Rekening Koran', route: 'bank-statements' },
@@ -86,10 +92,10 @@ export default function Authenticated({ header, children }) {
             case 'ENGINEER':
                 return [
                     { name: 'Dashboard Verifikasi', route: 'dashboard' },
-                    { name: 'Kontrol RAB', route: 'rab-control' },
+                    { name: 'Kontrol RAB', route: 'rab-control', approvalBadge: 'main' },
                     { name: 'Penyimpanan RAB', route: 'rab-storage' },
-                    { name: 'Verifikasi Kebutuhan', route: 'approval.needs' },
-                    { name: 'Verifikasi Tagihan', route: 'approval.invoices' },
+                    { name: 'Verifikasi Kebutuhan', route: 'approval.needs', approvalBadge: 'needs' },
+                    { name: 'Verifikasi Tagihan', route: 'approval.invoices', approvalBadge: 'invoices' },
                 ];
             case 'PURCHASING_LEGAL':
                 return [
@@ -102,7 +108,7 @@ export default function Authenticated({ header, children }) {
             case 'VERIFIKATOR_KEU':
                 return [
                     { name: 'Dashboard Verifikasi', route: 'dashboard' },
-                    { name: 'Verifikasi Dokumen', route: 'approval' },
+                    { name: 'Verifikasi Dokumen', route: 'approval', approvalBadge: 'main' },
                     { name: 'Verifikasi LPJ', route: 'approval' },
                 ];
             case 'MGR_KOMERSIAL':
@@ -110,7 +116,7 @@ export default function Authenticated({ header, children }) {
                     { name: 'Executive Dashboard', route: 'dashboard' },
                     { name: 'Kontrol RAB', route: 'rab-control' },
                     { name: 'Penyimpanan RAB', route: 'rab-storage' },
-                    { name: 'Approval PO & SPK', route: 'approval' },
+                    { name: 'Approval PO & SPK', route: 'approval', approvalBadge: 'main' },
                     { name: 'Approval Cashflow', route: 'approval' },
                 ];
             case 'KEU_KANTOR':
@@ -204,6 +210,7 @@ export default function Authenticated({ header, children }) {
                 <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 py-4">
                     {menus.map((menu, idx) => {
                         const isActive = route().current(menu.route);
+                        const approvalCount = menu.approvalBadge ? approvalUnreadCounts[menu.approvalBadge] || 0 : 0;
                         return (
                             <Link
                                 key={idx}
@@ -215,7 +222,15 @@ export default function Authenticated({ header, children }) {
                                         : 'text-slate-300 hover:bg-slate-900 hover:text-white')
                                 }
                             >
-                                <span>{menu.name}</span>
+                                <span className="flex-1">{menu.name}</span>
+                                {approvalCount > 0 && (
+                                    <span
+                                        className="ml-2 min-w-5 rounded-full bg-rose-600 px-1.5 text-center text-[11px] font-bold leading-5 text-white"
+                                        aria-label={`${approvalCount} approval baru`}
+                                    >
+                                        {approvalCount > 99 ? '99+' : approvalCount}
+                                    </span>
+                                )}
                             </Link>
                         );
                     })}
@@ -270,7 +285,7 @@ export default function Authenticated({ header, children }) {
 
                             {/* User dropdown - right side */}
                             <div className="flex items-center gap-2 sm:ms-6 ml-auto">
-                                <WorkflowNotifications />
+                                <WorkflowNotifications onApprovalCountsChange={setApprovalUnreadCounts} />
                                 <div className="ms-3 relative">
                                     <Dropdown>
                                         <Dropdown.Trigger>

@@ -12,32 +12,47 @@ const timeLabel = (value) => {
     return date.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' });
 };
 
-export default function WorkflowNotifications() {
+export default function WorkflowNotifications({ onApprovalCountsChange }) {
     const [open, setOpen] = useState(false);
     const [notifications, setNotifications] = useState([]);
     const [unreadCount, setUnreadCount] = useState(0);
+
+    const syncUnreadCounts = useCallback((data) => {
+        setUnreadCount(data.unread_count || 0);
+        onApprovalCountsChange?.({
+            all: data.approval_unread_count || 0,
+            main: data.approval_unread_counts?.main || 0,
+            needs: data.approval_unread_counts?.needs || 0,
+            invoices: data.approval_unread_counts?.invoices || 0,
+        });
+    }, [onApprovalCountsChange]);
 
     const load = useCallback(async () => {
         try {
             const { data } = await axios.get('/api/notifications');
             setNotifications(data.data || []);
-            setUnreadCount(data.unread_count || 0);
+            syncUnreadCounts(data);
         } catch {
             // Notifications must not interrupt the rest of the application.
         }
-    }, []);
+    }, [syncUnreadCounts]);
 
     useEffect(() => {
         load();
-        const poll = window.setInterval(load, 30000);
-        return () => window.clearInterval(poll);
+        const poll = window.setInterval(load, 15000);
+        window.addEventListener('focus', load);
+
+        return () => {
+            window.clearInterval(poll);
+            window.removeEventListener('focus', load);
+        };
     }, [load]);
 
     const openNotification = async (notification) => {
         if (!notification.read_at) {
             try {
                 const { data } = await axios.put(`/api/notifications/${notification.id}/read`);
-                setUnreadCount(data.unread_count || 0);
+                syncUnreadCounts(data);
                 setNotifications((items) => items.map((item) => item.id === notification.id ? { ...item, read_at: new Date().toISOString() } : item));
             } catch {
                 // The destination may still be opened even when read-state update fails.
@@ -49,8 +64,8 @@ export default function WorkflowNotifications() {
 
     const markAllRead = async () => {
         try {
-            await axios.put('/api/notifications/read-all');
-            setUnreadCount(0);
+            const { data } = await axios.put('/api/notifications/read-all');
+            syncUnreadCounts(data);
             setNotifications((items) => items.map((item) => ({ ...item, read_at: item.read_at || new Date().toISOString() })));
         } catch {
             // Notifications must not interrupt the rest of the application.

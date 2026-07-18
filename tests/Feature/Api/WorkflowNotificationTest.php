@@ -4,6 +4,7 @@ namespace Tests\Feature\Api;
 
 use App\Models\Project;
 use App\Models\RabBudget;
+use App\Notifications\WorkflowNotification;
 
 class WorkflowNotificationTest extends TestCase
 {
@@ -37,12 +38,24 @@ class WorkflowNotificationTest extends TestCase
             'notifiable_type' => $admin::class,
             'notifiable_id' => $admin->id,
         ]);
+
+        $this->actingAs($engineer)
+            ->getJson('/api/notifications')
+            ->assertOk()
+            ->assertJsonPath('approval_unread_count', 1)
+            ->assertJsonPath('approval_unread_counts.needs', 1);
+
+        $this->actingAs($admin)
+            ->getJson('/api/notifications')
+            ->assertOk()
+            ->assertJsonPath('approval_unread_count', 1)
+            ->assertJsonPath('approval_unread_counts.needs', 1);
     }
 
     public function test_recipient_can_view_and_mark_workflow_notification_read(): void
     {
         $engineer = $this->createUser('ENGINEER');
-        $engineer->notify(new \App\Notifications\WorkflowNotification(
+        $engineer->notify(new WorkflowNotification(
             'PO Proyek menunggu routing',
             'PO-NOTIFY-002 perlu diverifikasi.',
             'ENGINEER',
@@ -54,11 +67,17 @@ class WorkflowNotificationTest extends TestCase
         $notificationId = $this->getJson('/api/notifications')
             ->assertOk()
             ->assertJsonPath('unread_count', 1)
+            ->assertJsonPath('approval_unread_count', 1)
+            ->assertJsonPath('approval_unread_counts.main', 1)
+            ->assertJsonPath('approval_unread_counts.needs', 0)
+            ->assertJsonPath('approval_unread_counts.invoices', 0)
             ->json('data.0.id');
 
         $this->putJson("/api/notifications/{$notificationId}/read")
             ->assertOk()
-            ->assertJsonPath('unread_count', 0);
+            ->assertJsonPath('unread_count', 0)
+            ->assertJsonPath('approval_unread_count', 0)
+            ->assertJsonPath('approval_unread_counts.main', 0);
 
         $this->assertDatabaseHas('notifications', ['id' => $notificationId, 'notifiable_id' => $engineer->id]);
     }
