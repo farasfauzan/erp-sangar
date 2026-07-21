@@ -22,7 +22,7 @@ class PurchaseOrder extends Model
         'supplier_contact_person',
         'project_location',
         'discount',
-        'include_ppn',
+        'tax_rate',
         'catatan',
         'faktur_pajak_nama',
         'faktur_pajak_npwp',
@@ -40,11 +40,10 @@ class PurchaseOrder extends Model
         'created_by',
         'approved_by',
         'contact_person',
-        'supplier_address',
     ];
 
     protected $casts = [
-        'include_ppn' => 'boolean',
+        'tax_rate' => 'float',
         'discount' => 'decimal:2',
         'jadwal_kirim' => 'date',
     ];

@@ -25,25 +25,4 @@ return [
 
     'currency' => env('DEFAULT_CURRENCY', 'IDR'),
 
-    /*
-    |--------------------------------------------------------------------------
-    | Roles
-    |--------------------------------------------------------------------------
-    |
-    | Role name to ID mapping used by the authorization system.
-    |
-    */
-
-    'roles' => [
-        'ADMIN'             => 1,
-        'LAPANGAN'          => 2,
-        'ENGINEER'          => 3,
-        'PURCHASING_LEGAL'  => 4,
-        'VERIFIKATOR_KEU'   => 5,
-        'MGR_KOMERSIAL'     => 6,
-        'KEU_KANTOR'        => 7,
-        'PAJAK'             => 8,
-        'ACCOUNTING'        => 9,
-    ],
-
 ];

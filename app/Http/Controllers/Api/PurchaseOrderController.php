@@ -74,7 +74,7 @@ class PurchaseOrderController extends Controller
             $rules['supplier_contact_person'] = 'nullable|string';
             $rules['project_location'] = 'nullable|string';
             $rules['discount'] = 'nullable|numeric|min:0';
-            $rules['include_ppn'] = 'nullable|boolean';
+            $rules['tax_rate'] = 'nullable|numeric|min:0';
             $rules['catatan'] = 'nullable|string';
             $rules['faktur_pajak_nama'] = 'nullable|string';
             $rules['faktur_pajak_npwp'] = 'nullable|string';
@@ -162,7 +162,7 @@ class PurchaseOrderController extends Controller
                     'supplier_contact_person' => $validated['supplier_contact_person'] ?? null,
                     'project_location' => $validated['project_location'] ?? null,
                     'discount' => $validated['discount'] ?? 0,
-                    'include_ppn' => $validated['include_ppn'] ?? true,
+                    'tax_rate' => $validated['tax_rate'] ?? 0,
                     'catatan' => $validated['catatan'] ?? null,
                     'faktur_pajak_nama' => $validated['faktur_pajak_nama'] ?? 'PT. SINAR CERAH SEMPURNA',
                     'faktur_pajak_npwp' => $validated['faktur_pajak_npwp'] ?? '002.652.984.2-331.000',
@@ -193,12 +193,13 @@ class PurchaseOrderController extends Controller
                 if ($poLevel === 'SUPPLIER') {
                     $discount = $validated['discount'] ?? 0;
                     $subtotalAfterDiscount = $subtotal - $discount;
-                    $includePpn = $validated['include_ppn'] ?? true;
-                    $tax = $includePpn ? $subtotalAfterDiscount * 0.11 : 0;
+                    $taxRate = $validated['tax_rate'] ?? 0;
+                    $tax = $subtotalAfterDiscount * ($taxRate / 100);
+                    
                     $po->update([
                         'subtotal' => $subtotal,
-                        'tax_amount' => $tax,
-                        'total_amount' => $subtotalAfterDiscount + $tax,
+                        'tax_amount' => round($tax, 2),
+                        'total_amount' => round($subtotalAfterDiscount + $tax, 2),
                     ]);
                 }
 
@@ -245,7 +246,7 @@ class PurchaseOrderController extends Controller
             'supplier_contact_person' => 'nullable|string',
             'payment_terms' => 'nullable|string',
             'jadwal_kirim' => 'nullable|date',
-            'include_ppn' => 'nullable|boolean',
+            'tax_rate' => 'nullable|numeric|min:0',
             'discount' => 'nullable|numeric|min:0',
             'catatan' => 'nullable|string',
             'items' => 'nullable|array',
@@ -274,11 +275,13 @@ class PurchaseOrderController extends Controller
                 $subtotal = $po->items()->sum('total_price');
                 $discount = $po->discount ?? 0;
                 $afterDiscount = $subtotal - $discount;
-                $taxAmount = $po->include_ppn ? round($afterDiscount * 0.11) : 0;
+                $taxRate = $po->tax_rate ?? 0;
+                $taxAmount = $afterDiscount * ($taxRate / 100);
+                
                 $po->update([
                     'subtotal' => $subtotal,
-                    'tax_amount' => $taxAmount,
-                    'total_amount' => $afterDiscount + $taxAmount,
+                    'tax_amount' => round($taxAmount, 2),
+                    'total_amount' => round($afterDiscount + $taxAmount, 2),
                 ]);
             }
         });

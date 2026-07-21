@@ -32,7 +32,9 @@ class InvoiceController extends Controller
         $perPage = min($request->query('per_page', 15), 100);
 
         return response()->json(
-            Invoice::with(['invoiceable', 'opname', 'transactions', 'attachments.uploader'])->latest()->paginate($perPage)
+            Invoice::with(['invoiceable', 'opname', 'transactions', 'attachments.uploader'])
+                ->latest()
+                ->paginate($perPage)
         );
     }
 
@@ -81,7 +83,10 @@ class InvoiceController extends Controller
                 $proportionalDiscount = $receivedSubtotal * $discountRatio;
                 
                 $netReceived = $receivedSubtotal - $proportionalDiscount;
-                $tax = $purchaseOrder->include_ppn ? ($netReceived * 0.11) : 0;
+                
+                // Kalkulasi proporsional dinamis berdasarkan tax_rate pada PO induk
+                $taxRate = (float) $purchaseOrder->tax_rate;
+                $tax = $netReceived * ($taxRate / 100);
                 $totalReceivedValue = round($netReceived + $tax, 2);
 
                 $invoicedAmount = (float) Invoice::where('invoiceable_type', PurchaseOrder::class)

@@ -43,12 +43,11 @@ class SpkController extends Controller
             'spk_type'      => 'required|string|in:SUBKON,MANDOR,ALAT',
             'subcon_name'   => 'required|string',
             'subtotal'      => 'required|numeric|min:0',
-            'include_ppn'   => 'boolean',
+            'tax_rate'      => 'nullable|numeric|min:0',
             'payment_terms' => 'nullable|string',
             'jadwal_kirim'  => 'nullable|date',
         ]);
 
-        // Solusi error Expected type 'object'. Found 'array<...>': Menambahkan DocBlock
         /** @var \App\Models\PurchaseOrder|null $sourcePo */
         $sourcePo = ! empty($validated['source_po_id'])
             ? PurchaseOrder::with('items.rabBudget')->findOrFail($validated['source_po_id'])
@@ -93,8 +92,8 @@ class SpkController extends Controller
             }
         }
 
-        $includePpn = $validated['include_ppn'] ?? true;
-        $tax = $includePpn ? $validated['subtotal'] * 0.11 : 0;
+        $taxRate = $validated['tax_rate'] ?? 0;
+        $tax = $validated['subtotal'] * ($taxRate / 100);
 
         $spk = Spk::create([
             'project_id'    => $validated['project_id'],
@@ -103,9 +102,9 @@ class SpkController extends Controller
             'spk_type'      => $validated['spk_type'],
             'subcon_name'   => $validated['subcon_name'],
             'subtotal'      => $validated['subtotal'],
-            'tax_amount'    => $tax,
-            'total_amount'  => $validated['subtotal'] + $tax,
-            'include_ppn'   => $includePpn,
+            'tax_rate'      => $taxRate,
+            'tax_amount'    => round($tax, 2),
+            'total_amount'  => round($validated['subtotal'] + $tax, 2),
             'payment_terms' => $validated['payment_terms'] ?? null,
             'jadwal_kirim'  => $validated['jadwal_kirim'] ?? null,
             'status'        => 'DRAFT',
