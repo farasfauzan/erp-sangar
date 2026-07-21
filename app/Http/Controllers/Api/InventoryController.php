@@ -15,7 +15,7 @@ class InventoryController extends Controller
 {
     public function index(Request $request)
     {
-        $query = InventoryStock::with('rabBudget');
+        $query = InventoryStock::with(['project', 'rabBudget']);
 
         if ($projectId = $request->get('project_id')) {
             $query->where('project_id', $projectId);
