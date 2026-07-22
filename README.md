@@ -268,8 +268,8 @@ ADMIN menerima salinan notifikasi agar dapat memantau seluruh handoff workflow.
 ### Menjalankan aplikasi
 
 ~~~bash
-git clone https://github.com/farasfauzan/rep-sangar.git
-cd rep-sangar
+git clone https://github.com/farasfauzan/erp-sangar.git
+cd erp-sangar
 
 composer install
 npm install
